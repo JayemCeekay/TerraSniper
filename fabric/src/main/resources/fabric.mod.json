@@ -11,7 +11,7 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "com.jayemceekay.TerraSniper.fabric.TerraSniperFabric"
+      "com.jayemceekay.terrasniper.fabric.TerraSniperFabric"
     ]
   },
   "depends": {
