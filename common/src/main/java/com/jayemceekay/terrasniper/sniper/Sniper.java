@@ -153,8 +153,7 @@ public class Sniper {
                     }
 
                     Snipe snipe = new Snipe(this, toolkit, toolkitProperties, currentBrushProperties, currentBrush);
-                    if (currentBrush instanceof PerformerBrush) {
-                        PerformerBrush performerBrush = (PerformerBrush) currentBrush;
+                    if (currentBrush instanceof PerformerBrush performerBrush) {
                         performerBrush.initialize(snipe);
                     }
 
@@ -220,8 +219,8 @@ public class Sniper {
                 toolkit.getCurrentBrush().getSettings().forEach((setting, value) -> {
                     tag.add(StringTag.valueOf(TextComponent.Serializer.toJson(new TextComponent(ChatFormatting.DARK_AQUA + setting + ": " + value))));
                 });
-                tag.add(StringTag.valueOf(TextComponent.Serializer.toJson(new TextComponent(ChatFormatting.BLUE + "Material: " + toolkit.getProperties().getPattern().asBlockState()))));
-                tag.add(StringTag.valueOf(TextComponent.Serializer.toJson(new TextComponent(ChatFormatting.BLUE + "Replacing: " + toolkit.getProperties().getReplacePattern().toString()))));
+                tag.add(StringTag.valueOf(TextComponent.Serializer.toJson(new TextComponent(ChatFormatting.BLUE + "Material: " + toolkit.getProperties().getPattern().getPattern().toString()))));
+                tag.add(StringTag.valueOf(TextComponent.Serializer.toJson(new TextComponent(ChatFormatting.BLUE + "Replacing: " + toolkit.getProperties().getReplacePattern().getPattern().toString()))));
                 display.put("Lore", tag);
 
                 if (index >= 0) {
