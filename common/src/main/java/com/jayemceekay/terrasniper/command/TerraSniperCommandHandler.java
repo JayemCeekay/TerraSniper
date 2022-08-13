@@ -30,6 +30,7 @@ import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import org.apache.commons.lang3.StringUtils;
 import org.enginehub.piston.converter.SuggestionHelper;
 
@@ -152,7 +153,7 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.level.clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos())).toBaseBlock();
                                     sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state, state.toString()));
                                     (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception e) {
@@ -229,7 +230,7 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.level.clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos())).toBaseBlock();
                                     sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state, state.toString()));
                                     (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception var5) {
@@ -279,7 +280,7 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.level.clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos())).toBaseBlock();
                                     sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state, state.toString()));
                                     (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception var5) {
@@ -304,7 +305,7 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.level.clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos())).toBaseBlock();
                                     sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state, state.toString()));
                                     (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception var5) {
@@ -421,7 +422,11 @@ public class TerraSniperCommandHandler {
                 })))
 
                 .then(Commands.literal("toolkit")
-                        .then(Commands.argument("toolkit_name", StringArgumentType.string())
+                        .then(Commands.argument("toolkit_name", StringArgumentType.string()).suggests((context, builder) -> {
+                                    Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
+                                    sniper.getToolkits().stream().filter(toolkit -> !toolkit.getToolkitName().equalsIgnoreCase("default")).forEach(toolkit -> builder.suggest(toolkit.getToolkitName()));
+                                    return builder.buildFuture();
+                                })
                                 .then(Commands.literal("add")
                                         .then(Commands.literal("arrow").executes((context) -> {
                                             Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
@@ -476,7 +481,12 @@ public class TerraSniperCommandHandler {
 
                                     return 0;
                                 }))
-                                .then(Commands.literal("gift").then(Commands.argument("recipient_name", StringArgumentType.string()).executes((context) -> {
+                                .then(Commands.literal("gift").then(Commands.argument("recipient_name", StringArgumentType.string()).suggests(
+                                                (context, builder) -> {
+                                                    context.getSource().getServer().getPlayerList().getPlayers().stream().filter(player -> !context.getSource().getTextName().equalsIgnoreCase(player.getName().getString())).forEach(player -> builder.suggest(player.getName().getString()));
+                                                    return builder.buildFuture();
+                                                }
+                                        ).executes((context) -> {
                                             Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
                                             Messenger messenger = new Messenger(sniper.getPlayer());
                                             try {
@@ -485,7 +495,7 @@ public class TerraSniperCommandHandler {
                                                     Messenger recipientMessenger = new Messenger(recipient.getPlayer());
                                                     if (!recipient.getToolkits().contains(sniper.getToolkit(StringArgumentType.getString(context, "toolkit_name")))) {
                                                         recipient.addToolkit(sniper.getToolkit(StringArgumentType.getString(context, "toolkit_name")));
-                                                        messenger.sendMessage(ChatFormatting.GREEN + "Gave " + recipient.getPlayer().getName() + " the toolkit " + StringArgumentType.getString(context, "toolkit_name") + ".");
+                                                        messenger.sendMessage(ChatFormatting.GREEN + "Gifted " + recipient.getPlayer().getName() + " the toolkit " + StringArgumentType.getString(context, "toolkit_name") + ".");
                                                         recipientMessenger.sendMessage(ChatFormatting.GREEN + "You were given the toolkit " + StringArgumentType.getString(context, "toolkit_name") + " by " + sniper.getPlayer().getName() + ".");
                                                     }
                                                 }
@@ -497,7 +507,7 @@ public class TerraSniperCommandHandler {
                                 )))
                 .then(Commands.literal("tools").then(Commands.argument("toolkit_name", StringArgumentType.string()).suggests((context, builder) -> {
                     Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
-                     sniper.getToolkits().forEach(toolkit -> builder.suggest(toolkit.getToolkitName()));
+                    sniper.getToolkits().forEach(toolkit -> builder.suggest(toolkit.getToolkitName()));
                     return builder.buildFuture();
                 }).executes((context) -> {
                     Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
