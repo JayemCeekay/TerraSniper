@@ -22,7 +22,6 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.world.block.BlockState;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -167,8 +166,9 @@ public class TerraSniperCommandHandler {
                             return 0;
                         })
                         .then(Commands.argument("voxel", StringArgumentType.greedyString()).suggests((context, builder) -> {
-                            if(context.hasNodes()) {
+                            try {
                                 TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxel")).forEach(builder::suggest);
+                            } catch (Exception ignored) {
                             }
                             return builder.buildFuture();
                         }).executes((context) -> {
@@ -201,7 +201,10 @@ public class TerraSniperCommandHandler {
                             return false;
                         })
                         .then(Commands.argument("voxelReplace", StringArgumentType.greedyString()).suggests((context, builder) -> {
-                            TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelReplace")).forEach(builder::suggest);
+                            try {
+                                TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelReplace")).forEach(builder::suggest);
+                            } catch (Exception ignored) {
+                            }
                             return builder.buildFuture();
                         }).executes((context) -> {
                             Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
@@ -248,7 +251,10 @@ public class TerraSniperCommandHandler {
                             return false;
                         })
                         .then(Commands.argument("voxelCombo", StringArgumentType.greedyString()).suggests((context, builder) -> {
-                            TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelCombo")).forEach(builder::suggest);
+                            try {
+                                TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelCombo")).forEach(builder::suggest);
+                            } catch (Exception ignored) {
+                            }
                             return builder.buildFuture();
                         }).executes((context) -> {
                             Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
@@ -256,9 +262,9 @@ public class TerraSniperCommandHandler {
                                 try {
                                     ParserContext parserContext = new ParserContext();
                                     parserContext.setActor(PlatformAdapter.adaptPlayer((ServerPlayer) sniper.getPlayer()));
-                                    BlockState state = WorldEdit.getInstance().getBlockFactory().parseFromInput(context.getArgument("voxelCombo", String.class), parserContext).toImmutableState();
-                                    sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state));
-                                    (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state)).send();
+                                    Pattern state = WorldEdit.getInstance().getBlockFactory().parseFromInput(context.getArgument("voxelCombo", String.class), parserContext).toBaseBlock();
+                                    sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state, state.toString()));
+                                    (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (InputParseException var4) {
                                     (new MessageSender(sniper.getPlayer())).message(ChatFormatting.RED + "Invalid Item!").send();
                                 }
@@ -273,9 +279,9 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    BlockState state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint());
-                                    sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state));
-                                    (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state)).send();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    sniper.getCurrentToolkit().getProperties().setPattern(new BrushPattern(state, state.toString()));
+                                    (new MessageSender(sniper.getPlayer())).patternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception var5) {
                                     (new MessageSender(sniper.getPlayer())).message(ChatFormatting.RED + "Invalid Item!").send();
                                 }
@@ -298,9 +304,9 @@ public class TerraSniperCommandHandler {
                             if (sniper != null && sniper.getCurrentToolkit() != null) {
                                 try {
                                     Player player = sniper.getPlayer();
-                                    BlockState state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint());
-                                    sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state));
-                                    (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state)).send();
+                                    Pattern state = PlatformAdapter.adapt(player.getServer().getLevel(player.level.dimension())).getBlock(PlatformAdapter.adapt(player.pick(128, 1, false).getLocation()).toBlockPoint()).toBaseBlock();
+                                    sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state, state.toString()));
+                                    (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (Exception var5) {
                                     (new MessageSender(sniper.getPlayer())).message(ChatFormatting.RED + "Invalid Item!").send();
                                 }
@@ -312,7 +318,10 @@ public class TerraSniperCommandHandler {
                             return 0;
                         })
                         .then(Commands.argument("voxelComboReplace", StringArgumentType.greedyString()).suggests((context, builder) -> {
-                            TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelComboReplace")).forEach(builder::suggest);
+                            try {
+                                TerraSniper.TerraSniperPatternParser.getSuggestions(StringArgumentType.getString(context, "voxelComboReplace")).forEach(builder::suggest);
+                            } catch (Exception ignored) {
+                            }
                             return builder.buildFuture();
                         }).executes((context) -> {
                             Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
@@ -320,9 +329,9 @@ public class TerraSniperCommandHandler {
                                 try {
                                     ParserContext parserContext = new ParserContext();
                                     parserContext.setActor(PlatformAdapter.adaptPlayer((ServerPlayer) sniper.getPlayer()));
-                                    BlockState state = WorldEdit.getInstance().getBlockFactory().parseFromInput(context.getArgument("voxelComboReplace", String.class), parserContext).toImmutableState();
-                                    sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state));
-                                    (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state)).send();
+                                    Pattern state = WorldEdit.getInstance().getBlockFactory().parseFromInput(context.getArgument("voxelComboReplace", String.class), parserContext).toBaseBlock();
+                                    sniper.getCurrentToolkit().getProperties().setReplacePattern(new BrushPattern(state, state.toString()));
+                                    (new MessageSender(sniper.getPlayer())).replacePatternMessage(new BrushPattern(state, state.toString())).send();
                                 } catch (InputParseException var4) {
                                     (new MessageSender(sniper.getPlayer())).message(ChatFormatting.RED + "Invalid Item!").send();
                                 }
@@ -486,7 +495,11 @@ public class TerraSniperCommandHandler {
                                             return 0;
                                         }))
                                 )))
-                .then(Commands.literal("tools").then(Commands.argument("toolkit_name", StringArgumentType.string()).executes((context) -> {
+                .then(Commands.literal("tools").then(Commands.argument("toolkit_name", StringArgumentType.string()).suggests((context, builder) -> {
+                    Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
+                     sniper.getToolkits().forEach(toolkit -> builder.suggest(toolkit.getToolkitName()));
+                    return builder.buildFuture();
+                }).executes((context) -> {
                     Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
                     String toolkitName = StringArgumentType.getString(context, "toolkit_name");
                     Messenger messenger = new Messenger(sniper.getPlayer());
