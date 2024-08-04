@@ -21,7 +21,7 @@ subprojects {
         // The following line declares the mojmap mappings, you may use other mappings as well
         mappings loom.officialMojangMappings()
         compileOnly("com.sk89q.worldedit:worldedit-core:7.2.10")
-        modApi("curse.maven:worldedit-225608:3697298")
+        modApi("curse.maven:worldedit-225608:4586218")
         modApi("curse.maven:conquest-reforged-250077:4745725")
         //modImplementation "curse.maven:conquest-reforged-250077:4745725"
 

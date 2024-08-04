@@ -493,10 +493,10 @@ public abstract class AbstractBrush implements Brush {
     private BlockState composeBlock(String material, int shape, boolean waterlogged) {
         int binaryCrossSum;
         if (shape==0b11111111) { // full block
-            return (new BlockType(material)).getDefaultState();
+            return (BlockTypes.get(material)).getDefaultState();
         }
         if (shape==0) { // air or water
-            return new BlockType(waterlogged ? "minecraft:water" : "minecraft:air").getDefaultState();
+            return BlockTypes.get(waterlogged ? "minecraft:water" : "minecraft:air").getDefaultState();
         }
         // obtain the block variant (stair/slab/...) first:
         String blockVariant;
@@ -531,7 +531,7 @@ public abstract class AbstractBrush implements Brush {
         }
 
         // create the BlockState object
-        BlockState blockState = new BlockType(fixConquestNames(material, blockVariant)).getDefaultState();
+        BlockState blockState = BlockTypes.get(fixConquestNames(material, blockVariant)).getDefaultState();
         blockState = blockState.with(WATERLOGGED, waterlogged);
 
         // obtain the block data from the given shape:
@@ -1041,7 +1041,7 @@ public abstract class AbstractBrush implements Brush {
         if (useSmallBlocks) {
             // return the sub-block at half coordinates instead
             BlockVector3 halfPosition = divBy2(position);  // halfed coordinate relative to the target block
-            return (new BlockType(getSubBlock(halfPosition, mod2(position)))).getDefaultState();
+            return (BlockTypes.get(getSubBlock(halfPosition, mod2(position)))).getDefaultState();
         }
         else{
             return this.editSession.getBlock(position);
