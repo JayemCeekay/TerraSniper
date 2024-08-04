@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "terrasniper",
+  "version": "${version}",
+  "name": "TerraSniper",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.jayemceekay.terrasniper.fabric.TerraSniperFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.8",
+    "minecraft": ">=1.18.2",
+    "conquest": "*"
+  }
+}
