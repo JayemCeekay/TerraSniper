@@ -4,6 +4,7 @@ import com.jayemceekay.terrasniper.sniper.snipe.Snipe;
 import com.jayemceekay.terrasniper.sniper.snipe.message.SnipeMessenger;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.world.block.BlockTypes;
 
 public class SnipeBrush extends AbstractPerformerBrush {
     public SnipeBrush() {
@@ -16,13 +17,23 @@ public class SnipeBrush extends AbstractPerformerBrush {
     @Override
     public void handleArrowAction(Snipe snipe) {
         BlockVector3 targetBlock = getTargetBlock();
-
-        try {
-            this.performer.perform(getEditSession(), targetBlock.getX(), targetBlock.getY(), targetBlock.getZ(), getBlock(targetBlock.getX(), targetBlock.getY(), targetBlock.getZ()));
-        } catch (MaxChangedBlocksException var4) {
-            var4.printStackTrace();
+        if(this.useSmallBlocks)
+        {
+            // use AbstractBrush.setBlockData to place an Air-eighth-block instead
+            try {
+                setBlockData(targetBlock.getX(), targetBlock.getY(), targetBlock.getZ(), BlockTypes.AIR.getDefaultState());
+            } catch (MaxChangedBlocksException var4) {
+                var4.printStackTrace();
+            }
         }
-
+        else
+        {
+            try {
+                this.performer.perform(getEditSession(), targetBlock.getX(), targetBlock.getY(), targetBlock.getZ(), getBlock(targetBlock.getX(), targetBlock.getY(), targetBlock.getZ()));
+            } catch (MaxChangedBlocksException var4) {
+                var4.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -43,3 +54,4 @@ public class SnipeBrush extends AbstractPerformerBrush {
         messenger.sendBrushNameMessage();
     }
 }
+

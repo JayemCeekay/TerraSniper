@@ -22,7 +22,8 @@ subprojects {
         mappings loom.officialMojangMappings()
         compileOnly("com.sk89q.worldedit:worldedit-core:7.2.10")
         modApi("curse.maven:worldedit-225608:4586218")
-        modApi("curse.maven:conquest-reforged-250077:4745725")
+        //modApi("curse.maven:conquest-reforged-250077:4745725")
+        modImplementation "curse.maven:conquest-reforged-250077:5148622"
         //modImplementation "curse.maven:conquest-reforged-250077:4745725"
 
         //modApi("curse.maven:worldedit-225608:3903074")

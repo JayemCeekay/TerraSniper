@@ -1,9 +1,9 @@
 package com.jayemceekay.terrasniper.brush.type;
 
-//import com.conquestrefabricated.content.blocks.init.BlockRegistrar;
-//import com.conquestrefabricated.content.blocks.block.Slab;
-//import com.conquestrefabricated.core.item.family.FamilyRegistry;
-import com.conquestrefabricated.RefabricatedModClient;
+import com.conquestrefabricated.core.item.family.FamilyRegistry;
+import com.conquestrefabricated.core.item.family.Family;
+
+
 import com.jayemceekay.terrasniper.brush.Brush;
 import com.jayemceekay.terrasniper.brush.property.BrushProperties;
 import com.jayemceekay.terrasniper.sniper.Sniper;
@@ -23,9 +23,11 @@ import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
 
 import java.text.DecimalFormat;
@@ -35,8 +37,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class AbstractBrush implements Brush {
-    private boolean useSmallBlocks = false;
+    protected boolean useSmallBlocks = false;
     private boolean canUseSmallBlocks = true;
+    private ToolAction action = ToolAction.ARROW;
     protected static final int CHUNK_SIZE = 16;
     protected static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat(".##");
     public final HashMap<String, String> settings = new HashMap<>();
@@ -47,29 +50,8 @@ public abstract class AbstractBrush implements Brush {
     private Map<BlockVector3, String[]> toDoList;
     private BlockVector3 offsetVector;
     private boolean additiveBrush = true; //whether the arrow action adds or removes blocks
-    private static final IntegerProperty LAYER3, LAYER4, LAYERS;
-    private static final BooleanProperty WATERLOGGED;
-    private static final DirectionalProperty FACING;
-    private static final EnumProperty TYPE, HALF, HINGE, SHAPE;
-    static {
-        List<Integer> intList3 = new ArrayList<>(List.of(1, 2, 3));
-        List<Integer> intList4 = new ArrayList<>(List.of(1, 2, 3, 4));
-        List<Integer> intList8 = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6, 7, 8));
-        List<Boolean> boolList = new ArrayList<>(List.of(true, false));
-        List<Direction> NESW = new ArrayList<>(List.of(Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST));
-        List<String> bottomTop = new ArrayList<>(List.of("bottom", "top"));
-        List<String> LR = new ArrayList<>(List.of("left", "right"));
-        List<String> shapeList = new ArrayList<>(List.of("straight", "inner_left", "inner_right", "outer_left", "outer_right"));
-        LAYER3 = new IntegerProperty("layer", intList3); // for quarter slabs
-        LAYER4 = new IntegerProperty("layer", intList4); // for vertical slab/corner/quarter
-        LAYERS = new IntegerProperty("layers", intList8); // for slabs
-        WATERLOGGED = new BooleanProperty("waterlogged", boolList);
-        FACING = new DirectionalProperty("facing", NESW);
-        TYPE = new EnumProperty("type", bottomTop);
-        HALF = new EnumProperty("half", bottomTop);
-        HINGE = new EnumProperty("hinge", LR);
-        SHAPE = new EnumProperty("shape", shapeList);
-    }
+
+    // maps from {0, 1, 2, ... , 255} to the set of possible block shapes (block shapes being encoded as 8 bit numbers, see below):
     private static final Map<Integer,Set<Integer>> GET_SHAPE_ADDITIVE = new HashMap<>();
     private static final Map<Integer,Set<Integer>> GET_SHAPE_SUBTRACTIVE = new HashMap<>();
     static{
@@ -87,22 +69,22 @@ public abstract class AbstractBrush implements Brush {
         GET_SHAPE_ADDITIVE.get(0b01101000).add(0b10101000); GET_SHAPE_SUBTRACTIVE.get(0b01101000).add(0b10101000);
         GET_SHAPE_ADDITIVE.get(0b10100100).add(0b10101000); GET_SHAPE_SUBTRACTIVE.get(0b10100100).add(0b10101000);
         // 4
-                                                            GET_SHAPE_SUBTRACTIVE.get(0b00010111).add(0b00110011);
-                                                            GET_SHAPE_SUBTRACTIVE.get(0b00011011).add(0b00110011);
+        GET_SHAPE_SUBTRACTIVE.get(0b00010111).add(0b00110011);
+        GET_SHAPE_SUBTRACTIVE.get(0b00011011).add(0b00110011);
         GET_SHAPE_ADDITIVE.get(0b10010011).add(0b00110011); GET_SHAPE_SUBTRACTIVE.get(0b10010011).add(0b00110011);
         GET_SHAPE_ADDITIVE.get(0b10010110).add(0b00110011); GET_SHAPE_SUBTRACTIVE.get(0b10010110).add(0b00110011);
         GET_SHAPE_ADDITIVE.get(0b10100101).add(0b00001111); GET_SHAPE_SUBTRACTIVE.get(0b10100101).add(0b00001111);
         // 5
         GET_SHAPE_ADDITIVE.get(0b10010111).add(0b00110111); GET_SHAPE_SUBTRACTIVE.get(0b10010111).add(0b00110111);
         // 6
-                                                            GET_SHAPE_SUBTRACTIVE.get(0b01111011).add(0b00111111);
-                                                            GET_SHAPE_SUBTRACTIVE.get(0b11011011).add(0b10111011);
+        GET_SHAPE_SUBTRACTIVE.get(0b01111011).add(0b00111111);
+        GET_SHAPE_SUBTRACTIVE.get(0b11011011).add(0b10111011);
 
 
         // add mappings where the volume increases/decreases:
         // 2
         GET_SHAPE_ADDITIVE.get(0b10000100).add(0b10001100); GET_SHAPE_SUBTRACTIVE.get(0b10000100).add(0b00000100);
-                                                            GET_SHAPE_SUBTRACTIVE.get(0b00100100).add(0b00000100);
+        GET_SHAPE_SUBTRACTIVE.get(0b00100100).add(0b00000100);
         // 3
         GET_SHAPE_ADDITIVE.get(0b01101000).add(0b10101010); GET_SHAPE_SUBTRACTIVE.get(0b01101000).add(0b10100000);
         GET_SHAPE_ADDITIVE.get(0b10100100).add(0b10101010); GET_SHAPE_SUBTRACTIVE.get(0b10100100).add(0b10100000);
@@ -208,51 +190,116 @@ public abstract class AbstractBrush implements Brush {
     }
     private static final Set<Integer> impossibleShapes = GET_SHAPE_ADDITIVE.keySet();
 
-    // materials (from vanilla minecraft) where the full block AND stairs variants are all vanilla blocks (e.g. stone):
-    private static final List<String> VARIANTS_EXIST_IN_VANILLA = new ArrayList<>(List.of("stone", "diorite", "andesite", "granite", "polished_diorite", "polished_andesite", "polished_granite", "cobblestone", "sandstone"));
+    // block variant suffixes:
+    private static final List<String> VARIANTS = new ArrayList<>(List.of("_vertical_slab", "_stairs", "_quarter_slab", "_vertical_quarter", "_eighth_slab", "_vertical_corner_slab", "_corner_slab", "_vertical_corner", "_slab", "_layer"));
 
-    // keys:   materials from Conquest where the full-block variant is a vanilla block (e.g. terracotta):
-    // values: corresponding vanilla name
-    private static final Map<String, String> VANILLA_TO_CONQUEST_MATERIAL;
+    // some vanilla block names that are different in the stairs variant (e.g. it is "quartz_block" but "quartz_stairs" and not "quartz_block_stairs"!):
+    private static final Map<String,String> FIX_VANILLA_NAMES = Map.ofEntries(
+            Map.entry("oak", "oak_planks"),
+            Map.entry("birch", "birch_planks"),
+            Map.entry("spruce", "spruce_planks"),
+            Map.entry("jungle", "jungle_planks"),
+            Map.entry("acacia", "acacia_planks"),
+            Map.entry("dark_oak", "dark_oak_planks"),
+            Map.entry("mangrove", "mangrove_planks"),
+            Map.entry("cherry", "cherry_planks"),
+            Map.entry("bamboo", "bamboo_planks"),
+            Map.entry("crimson", "crimson_planks"),
+            Map.entry("warped", "warped_planks"),
+            Map.entry("quartz", "quartz_block")
+    );
+
+    private static final Set<String> HAS_NO_FULL_BLOCK = new HashSet<>(Set.of(
+        "conquest:grassy_dirt",
+        "conquest:grassy_gravel",
+        "conquest:grass_and_sand"
+    ));
+
+    // materials (from vanilla minecraft) where both the full block AND stairs variants are vanilla blocks:
+    // keys = base blockname, e.g. "stone" or "oak_planks"
+    // values = stair variant name, e.g. "stone_stairs" or "oak_stairs"
+    private static final Map<String,String> VARIANTS_EXIST_IN_VANILLA = new HashMap<>();
+
+    // blocks that use "_layer" instead of "_slab" (mostly sand- and dirt-like blocks)
+    private static final Set<String> USES_LAYER_INSTEAD_OF_SLAB = new HashSet<>(Set.of(
+            "grassy_dirt",
+            "grassy_gravel",
+            "grass_and_sand"
+    ));
+
+    // block name conversions:
+    // values: materials from Conquest where the full-block variant is a vanilla block (e.g. "limestone_quarter_slab"):
+    // keys:   corresponding vanilla name (e.g. "stone")
+    private static final Map<String, String> VANILLA_TO_CONQUEST_MATERIAL = new HashMap<>();
+
+    // inverse map:
+    private static final Map<String, String> CONQUEST_TO_VANILLA_MATERIAL = new HashMap<>();
+
+    // initialization of these maps:
     static {
-        VANILLA_TO_CONQUEST_MATERIAL = Map.ofEntries(
-                Map.entry("stone", "limestone"),
-                Map.entry("diorite", "light_limestone"),
-                Map.entry("andesite", "andesite"),
-                Map.entry("granite", "granite"),
-                Map.entry("polished_diorite", "large_light_limestone_brick"),
-                Map.entry("polished_andesite", "large_andesite_masonry"),
-                Map.entry("polished_granite", "large_granite_brick"),
-                Map.entry("cobblestone", "limestone_cobble"),
-                Map.entry("sandstone", "sandstone"),
-                Map.entry("dirt", "lomy_dirt"),
-                Map.entry("grass_block", "gold_bar_pile"), // this is (currently) retextured & renamed ingame to "Full Grass Block" and has all required variants
-                Map.entry("terracotta", "umbre_mudstone"),
-                Map.entry("brown_terracotta", "brown_mudstone"),
-                Map.entry("black_terracotta", "black_hardened_clay"),
-                Map.entry("gray_terracotta", "gray_cave_silt"),
-                Map.entry("light_gray_terracotta", "worn_light_gray_plaster"),
-                Map.entry("white_terracotta", "light_mudstone"),
-                Map.entry("pink_terracotta", "pink_clay_tile"),
-                Map.entry("magenta_terracotta", "worn_magenta_plaster"),
-                Map.entry("purple_terracotta", "worn_purple_plaster"),
-                Map.entry("blue_terracotta", "blue_clay_beaver_tail_tile"),
-                Map.entry("light_blue_terracotta", "dirty_blue_clay_beaver_tail_tile"),
-                Map.entry("cyan_terracotta", "old_slate_roof_tile"),
-                Map.entry("green_terracotta", "green_clay_shingle"),
-                Map.entry("lime_terracotta", "overgrown_green_clay_shingle"),
-                Map.entry("yellow_terracotta", "yellow_mudstone"),
-                Map.entry("orange_terracotta", "orange_mudstone"),
-                Map.entry("red_terracotta", "red_mudstone")
-        );
-    }
-    private static final Map<String, String> CONQUEST_TO_VANILLA_MATERIAL= new HashMap<>(); // = inverse of CONQUEST_TO_VANILLA_MATERIAL
-    static{
-        for (Map.Entry<String, String> entry : VANILLA_TO_CONQUEST_MATERIAL.entrySet()) {
-            CONQUEST_TO_VANILLA_MATERIAL.put(entry.getValue(), entry.getKey());
+        for(Block vanillaBlock : BuiltInRegistries.BLOCK) {
+            // Get the conquest family of variants of the vanilla block:
+            Family<Block> variantFamily = FamilyRegistry.BLOCKS.getFamily(vanillaBlock);
+            String currentId = BuiltInRegistries.BLOCK.getKey(vanillaBlock).toString();
+
+            String rootId = BuiltInRegistries.BLOCK.getKey(variantFamily.getRoot()).toString();
+            if(!rootId.equals(currentId)) {continue;}
+            String vanillaName = rootId.substring(rootId.indexOf(":") + 1);
+
+            boolean foundConquestVariant = false;
+            boolean foundMinecraftStairVariant = false;
+            boolean usesLayerNotSlab = false;
+            String conquestName="";
+            String stairVariantName="";
+            for (Block variant : variantFamily.getMembers())
+            {
+                String variantId = BuiltInRegistries.BLOCK.getKey(variant).toString();
+
+                if(variantId.startsWith("conquest:")) {
+                    int ind = separatorIndex(variantId);
+                    if (ind != -1) {
+                        conquestName = variantId.substring(variantId.indexOf(":")+1, ind);
+                        foundConquestVariant = true;
+                    }
+                    if(variantId.endsWith("_layer")) {
+                        usesLayerNotSlab = true;
+                    }
+                }
+                else { if(variantId.startsWith("minecraft:") && variantId.endsWith("_stairs")) {
+                    stairVariantName = variantId.substring(variantId.indexOf(":")+1);
+                    foundMinecraftStairVariant = true;
+                }}
+            }
+
+            if (usesLayerNotSlab) {
+                USES_LAYER_INSTEAD_OF_SLAB.add(rootId.substring(rootId.indexOf(":") + 1));
+            }
+
+            if(!currentId.startsWith("minecraft:")) {continue;} // thus in the following tootId will be a vanilla block
+
+            if (foundMinecraftStairVariant) {
+                VARIANTS_EXIST_IN_VANILLA.put(rootId.substring(rootId.indexOf(":") + 1), stairVariantName);
+            }
+            if (foundConquestVariant) {
+                VANILLA_TO_CONQUEST_MATERIAL.put(vanillaName,conquestName);
+                if(rootId.startsWith("minecraft:") && rootId.endsWith("_log")) {
+                    String fixedVanillaName = vanillaName.substring(0, vanillaName.length() - 4) + "_wood";
+                    VANILLA_TO_CONQUEST_MATERIAL.put(fixedVanillaName ,conquestName);
+                    CONQUEST_TO_VANILLA_MATERIAL.put(conquestName, fixedVanillaName);
+                }
+                else {
+                    if(rootId.startsWith("minecraft:") && rootId.endsWith("_stem")) {
+                        String fixedVanillaName = vanillaName.substring(0, vanillaName.length() - 5) + "_hyphae";
+                        VANILLA_TO_CONQUEST_MATERIAL.put(fixedVanillaName ,conquestName);
+                        CONQUEST_TO_VANILLA_MATERIAL.put(conquestName, fixedVanillaName);
+                    }
+                    else {
+                        CONQUEST_TO_VANILLA_MATERIAL.put(conquestName,vanillaName);
+                    }
+                }
+            }
         }
     }
-    private static final List<String> VARIANTS = new ArrayList<>(List.of("_vertical_slab", "_stairs", "_quarter_slab", "_vertical_quarter", "_eighth_slab", "_vertical_corner_slab", "_corner_slab", "_vertical_corner", "_slab"));
 
     // some static methods for translation between sub-block lists and actual blocks:
     private static int binaryCrossSum(int n) {
@@ -268,26 +315,34 @@ public abstract class AbstractBrush implements Brush {
         String blockName = material.substring(i);
         String origin = material.substring(0,i);
         if (variant.isEmpty()) { // thus material comes from editSession.getBlock(...)
-            switch (origin) {
-                case "minecraft:":
-                    return material; // material comes from minecraft so its full-block name is already correct
+            switch(origin){
                 case "conquest:": // if material comes from a Conquest variant of a vanilla block, it has to be changed:
-                    if (blockName.contains("_wool") || blockName.contains("_stained_glass")) { // some families of blocks that exist as full blocks in vanilla, but have the same name
-                        return "minecraft:" + blockName;
-                    }
-                    if (CONQUEST_TO_VANILLA_MATERIAL.containsKey(blockName)){ // full-block name is different in vanilla (e.g. limestone --> stone)
+                    if (CONQUEST_TO_VANILLA_MATERIAL.containsKey(blockName)) { // full-block is from vanilla but may be different (e.g. limestone --> stone)
                         return "minecraft:" + CONQUEST_TO_VANILLA_MATERIAL.get(blockName);
                     }
-                    return material; // by default assume that even the full-block variant comes from conquest
+                    if (material.endsWith("red_sandstone_brick")) { // stupid exception: variants (i.e. stairs,slabs,...) of these blocks end in "brick" while the full block ends in "bricks"
+                        return material+"s";
+                    }
+                    break;
+                case "minecraft:": // need to change to the full-block name, e.g. "minecraft:oak" (obtained from "minecraft:oak_stairs") becomes "minecraft:oak_planks"
+                    if (blockName.endsWith("brick")) {return material+"s";} // brick stairs and slabs have no "s" at the end but the full block does ...
+                    if (blockName.endsWith("tile")) {return material+"s";} // same for (deepslate) tiles ...
+                    if (FIX_VANILLA_NAMES.containsKey(blockName)) {return "minecraft:" + FIX_VANILLA_NAMES.get(blockName);} // additional exceptions for the wood and marble stairs ...
             }
+
+            return material; // by default assume that material is already a valid block id
         }
-        else { // thus material is itself a valid id of a full block, so has to be modified if variant specifies a Conquest block
+        else { // thus material is (hopefully) itself a valid id of a full block, so has to be modified if variant specifies a Conquest block
+            if(USES_LAYER_INSTEAD_OF_SLAB.contains(blockName) && variant.equals("_slab")) {variant = "_layer";}
             switch (origin) {
                 case "conquest:":
+                    if (material.endsWith("red_sandstone_bricks")) { // stupid exception: variants of these blocks end in "brick" while the full block ends in "bricks"
+                        return material.substring(0,material.length()-1) + variant;
+                    }
                     return material + variant; // full block comes from conquest so all variants do as well
                 case "minecraft:":
-                    if (variant.equals("_stairs") && VARIANTS_EXIST_IN_VANILLA.contains(blockName)) { // block is a stair or slab that exists in the vanilla game (e.g. stone_stairs)
-                        return material + variant;
+                    if (variant.equals("_stairs") && VARIANTS_EXIST_IN_VANILLA.containsKey(blockName)) { // block is a stair or slab that exists in the vanilla game (e.g. stone_stairs)
+                        return "minecraft:" + VARIANTS_EXIST_IN_VANILLA.get(blockName);
                     }
                     if (VANILLA_TO_CONQUEST_MATERIAL.containsKey(blockName)) { // variants do NOT exist in vanilla (only in conquest) but with different names (e.g. limestone_quarter_slab)
                         return "conquest:" + VANILLA_TO_CONQUEST_MATERIAL.get(blockName) + variant;
@@ -318,27 +373,42 @@ public abstract class AbstractBrush implements Brush {
             default -> null;
         };
     }
-    private static int blockShape(String blockId, String blockVariant, Map<String, Object> blockStates) {
+    private int blockShape(String material, String blockVariant, BlockState block, BlockVector3 position, boolean adjust) {
         //returns an int from 0 to 255 encoding the block shape, i.e. which 1/8-sub-blocks are present
         // (assuming that for each of the variants all the relevant state-value pairs exist in 'blockStates')
-        Integer layers;
+        boolean waterlogged=false;
+        Map<String, Object> blockStates = new HashMap<>();
+        for (Map.Entry<Property<?>, Object> entry : block.getStates().entrySet()) {
+            String propertyName = entry.getKey().getName();
+            if(propertyName.equals("layer")) {propertyName = propertyName + String.valueOf(entry.getKey().getValues().size());}
+            Object propertyValue = entry.getValue();
+            if(propertyName.equals("waterlogged")) {waterlogged = (boolean) propertyValue;}
+            blockStates.put(propertyName, (propertyValue instanceof String) ? ((String)propertyValue).toLowerCase(Locale.ROOT) : propertyValue);
+        }
+
+        int height;
         String half;
+        int full = 0b11111111;
         switch(blockVariant){
-            case "": return  0b11111111;
+            case "": return  full;
+            case "layer":
             case "slab":
-                if (blockStates.containsKey("layers")) {layers = (Integer) blockStates.get("layers");} // for 8-layer slabs
-                else {layers = (Integer)safeCall(blockStates, "layer");} // for 4-layer slabs
-                if (blockId.startsWith("minecraft")) {layers = 4;} // vanilla slabs don't have layers, so interpret as conquest slab with 4 layers
+                height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
+                if(height==0) {return 0;}
+                if(height==2) {return full;}
                 switch((String)safeCall(blockStates, "type")){
-                    case "bottom":  return (layers<3 ? 0 : (layers<7 ? 0b00110011 : 0b11111111));
-                    case "top":     return (layers<3 ? 0 : (layers<7 ? 0b11001100 : 0b11111111));
+                    case "bottom": return 0b00110011;
+                    case "top":    return 0b11001100;
                 }
-            case "vertical_slab": layers = (Integer)safeCall(blockStates, "layer");
+            case "vertical_slab":
+                height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
+                if(height==0) {return 0;}
+                if(height==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
-                    case NORTH: return (layers<3 ? 0 : 0b10101010);
-                    case EAST:  return (layers<3 ? 0 : 0b00001111);
-                    case SOUTH: return (layers<3 ? 0 : 0b01010101);
-                    case WEST:  return (layers<3 ? 0 : 0b11110000);
+                    case NORTH: return 0b10101010;
+                    case EAST:  return 0b00001111;
+                    case SOUTH: return 0b01010101;
+                    case WEST:  return 0b11110000;
                 }
             case "stairs": half = (String)safeCall(blockStates, "half");
                 switch((Direction)safeCall(blockStates, "facing")){
@@ -371,58 +441,47 @@ public abstract class AbstractBrush implements Brush {
                         case "outer_right": return (half.equals("bottom") ? 0b00110111 : 0b11001101);
                     }
                 }
-            case "vertical_corner": layers = (Integer)safeCall(blockStates, "layer");
+            case "vertical_corner":
+                height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
+                if(height==0) {return 0;}
+                if(height==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
-                    case NORTH:   switch(layers) {
-                        case 1: return 0;
-                        case 2: return 0b10100000; // replace with vertical quarter
-                        case 3: return 0b11111010;
-                        case 4: return 0b11111111;
-                    }
-                    case EAST:    switch(layers) {
-                        case 1: return 0;
-                        case 2: return 0b00001010; // replace with vertical quarter
-                        case 3: return 0b10101111;
-                        case 4: return 0b11111111;
-                    }
-                    case SOUTH:   switch(layers) {
-                        case 1: return 0;
-                        case 2: return 0b00000101; // replace with vertical quarter
-                        case 3: return 0b01011111;
-                        case 4: return 0b11111111;
-                    }
-                    case WEST:    switch(layers) {
-                        case 1: return 0;
-                        case 2: return 0b01010000; // replace with vertical quarter
-                        case 3: return 0b11110101;
-                        case 4: return 0b11111111;
-                    }
+                    case NORTH: return 0b11111010;
+                    case EAST:  return 0b10101111;
+                    case SOUTH: return 0b01011111;
+                    case WEST:  return 0b11110101;
                 }
-            case "quarter_slab": layers = (Integer)safeCall(blockStates, "layer");
+            case "quarter_slab":
+                height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
+                if(height==0) {return 0;}
+                if(height==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
                     case NORTH:   switch((String)safeCall(blockStates, "type")) {
-                        case "bottom":  return (layers<2 ? 0 : 0b00100010);
-                        case "top":     return (layers<2 ? 0 : 0b10001000);
+                        case "bottom":  return 0b00100010;
+                        case "top":     return 0b10001000;
                     }
                     case EAST:    switch((String)safeCall(blockStates, "type")) {
-                        case "bottom":  return (layers<2 ? 0 : 0b00000011);
-                        case "top":     return (layers<2 ? 0 : 0b00001100);
+                        case "bottom":  return 0b00000011;
+                        case "top":     return 0b00001100;
                     }
                     case SOUTH:    switch((String)safeCall(blockStates, "type")) {
-                        case "bottom":  return (layers<2 ? 0 : 0b00010001);
-                        case "top":     return (layers<2 ? 0 : 0b01000100);
+                        case "bottom":  return 0b00010001;
+                        case "top":     return 0b01000100;
                     }
                     case WEST:    switch((String)safeCall(blockStates, "type")) {
-                        case "bottom":  return (layers<2 ? 0 : 0b00110000);
-                        case "top":     return (layers<2 ? 0 : 0b11000000);
+                        case "bottom":  return 0b00110000;
+                        case "top":     return 0b11000000;
                     }
                 }
-            case "vertical_quarter": layers = (Integer)safeCall(blockStates, "layer");
+            case "vertical_quarter":
+                height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
+                if(height==0) {return 0;}
+                if(height==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
-                    case NORTH:   return (layers<3 ? 0 : 0b10100000);
-                    case EAST:    return (layers<3 ? 0 : 0b00001010);
-                    case SOUTH:   return (layers<3 ? 0 : 0b00000101);
-                    case WEST:    return (layers<3 ? 0 : 0b01010000);
+                    case NORTH:   return 0b10100000;
+                    case EAST:    return 0b00001010;
+                    case SOUTH:   return 0b00000101;
+                    case WEST:    return 0b01010000;
                 }
             case "eighth_slab": half = (String)safeCall(blockStates, "type");
                 switch((Direction)safeCall(blockStates, "facing")){
@@ -460,6 +519,66 @@ public abstract class AbstractBrush implements Brush {
             default: return 0; //replace unknown block states with air
         }
     }
+
+    private int fixLayers(String material, Map<String, Object> blockStates, BlockState block, BlockVector3 position, boolean waterlogged, boolean adjust) {
+        var properties = block.getBlockType().getPropertyMap();
+        int layers=0; // layers that will be set using setBlock
+        int height=0; // height of the block: 0=empty, 1=half, 2=full
+        boolean adds = (this.action == ToolAction.ARROW) == this.additiveBrush;
+        boolean is_valid = false;
+        String property_name="";
+        if (blockStates.containsKey("layers")) { // for 8-layered blocks (only slabs)
+            property_name = "layers"; layers = 4;
+            switch((Integer) blockStates.get("layers")) {
+                case 1:
+                case 2:
+                case 3: height = adds ? 1 : 0;  break;
+                case 4: height = 1;  is_valid = true;  break;
+                case 5:
+                case 6: height = adds ? 2 : 1; break;
+                case 7:
+                case 8: height = 2;
+            }
+
+        }
+        else { if (blockStates.containsKey("layer4")) { // for 4-layered blocks (vertical and some of the horizontal slabs, vertical quarters)
+            property_name = "layer"; layers = 3;
+            switch((Integer) blockStates.get("layer4")) {
+                case 1:
+                case 2: height = adds ? 1 : 0;  break;
+                case 3: height = 1;  is_valid = true;  break;
+                case 4: height = adds ? 2 : 1;
+            }
+        }
+        else { if (blockStates.containsKey("layer3")) { // for 3-layered blocks (i.e. quarter slabs)
+            property_name = "layer"; layers = 2;
+            switch((Integer) blockStates.get("layer3")) {
+                case 1: height = adds ? 1 : 0;  break;
+                case 2: height = 1;  is_valid = true;  break;
+                case 3: height = adds ? 2 : 1;
+            }
+        }
+        else { // for non-layered blocks (minecraft slabs + some conquest slabs, e.g. the "... dwarven design" blocks)
+            height = 1;  is_valid = true;
+        }}}
+        if(!is_valid && adjust) { // if it isn't yet an empty, "half" or full block, adjust:
+            switch(height) {
+                case 0:
+                    try {this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());}
+                    catch (MaxChangedBlocksException except) {except.printStackTrace();} break;
+                case 1:
+                    try {this.editSession.setBlock(position, block.with((IntegerProperty) properties.get(property_name), layers));}
+                    catch (MaxChangedBlocksException except) {except.printStackTrace();} break;
+                case 2:
+                    BlockState fullBlock = composeBlock(material, 0b11111111, false);
+                    try {this.editSession.setBlock(position, fullBlock);}
+                    catch (MaxChangedBlocksException except) {except.printStackTrace();}
+            }
+
+        }
+        return (height);
+    }
+
     private static int nExposedFaces(int shape, int[] neighbors) {
         int N = 0;
         // add silhouettes in x-/y-/z- directions
@@ -493,6 +612,10 @@ public abstract class AbstractBrush implements Brush {
     private BlockState composeBlock(String material, int shape, boolean waterlogged) {
         int binaryCrossSum;
         if (shape==0b11111111) { // full block
+            if(HAS_NO_FULL_BLOCK.contains(material)) {
+                BlockState blockState = BlockTypes.get(material+"_layer").getDefaultState();
+                return blockState.with((IntegerProperty) blockState.getBlockType().getPropertyMap().get("layers"), 8);
+            }
             return (BlockTypes.get(material)).getDefaultState();
         }
         if (shape==0) { // air or water
@@ -530,189 +653,223 @@ public abstract class AbstractBrush implements Brush {
                 }
         }
 
-        // create the BlockState object
-        BlockState blockState = BlockTypes.get(fixConquestNames(material, blockVariant)).getDefaultState();
-        blockState = blockState.with(WATERLOGGED, waterlogged);
+        // create the BlockState object representing the block to be placed:
+        BlockState blockState = BlockTypes.get(fixConquestNames(material, blockVariant)).getDefaultState(); // fixConquestNames returns a valid block-ID like "conquest:limestone_vertical_corner" or "minecraft:stone_stairs"
 
-        // obtain the block data from the given shape:
+        var properties = blockState.getBlockType().getPropertyMap();
+
+        if(properties.containsKey("waterlogged")) {
+            blockState = blockState.with((BooleanProperty) properties.get("waterlogged"), waterlogged);
+        }
+
+        // obtain the block data from the calculated shape:
         switch(blockVariant) {
-            case "_slab": blockState = blockState.with(LAYERS, 4).with(LAYER4,3); // give both LAYERS (layers=1..8) and LAYER4 (layer=1..4) properties so it works for all conquest blocks, the invalid property will be ignored when placed
-                blockState = blockState.with(TYPE, upper ? "bottom" : "top");
+            case "_slab":
+                if(properties.containsKey("type")) {
+                    blockState = blockState.with((EnumProperty) properties.get("type"), upper ? "bottom" : "top");
+                }
+                if(properties.containsKey("layers")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layers"), 4);}
+                else { if(properties.containsKey("layer")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layer"),  3);
+                }}
                 break;
-            case "_vertical_slab": blockState = blockState.with(LAYER4, 3);
-                if (N) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (S) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (W) {blockState = blockState.with(FACING, Direction.WEST);}
-                if (E) {blockState = blockState.with(FACING, Direction.EAST);}
+            case "_vertical_slab":
+                if(properties.containsKey("layer")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layer"),  3);
+                }
+                if (N) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (S) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (W) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
+                if (E) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
                 break;
             case "_stairs":
                 switch(binaryCrossSum) {
-                    case 5: blockState = blockState.with(SHAPE, "outer_left");
+                    case 5: blockState = blockState.with((EnumProperty) properties.get("shape"), "outer_left");
                         if (NW_full) {
-                            blockState = blockState.with(FACING, Direction.NORTH);
-                            blockState = blockState.with(HALF, shape==0b00110111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b00110111 ? "bottom" : "top");
                         }
                         if (NE_full) {
-                            blockState = blockState.with(FACING, Direction.EAST);
-                            blockState = blockState.with(HALF, shape==0b01110011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b01110011 ? "bottom" : "top");
                         }
                         if (SE_full) {
-                            blockState = blockState.with(FACING, Direction.SOUTH);
-                            blockState = blockState.with(HALF, shape==0b10110011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b10110011 ? "bottom" : "top");
                         }
                         if (SW_full) {
-                            blockState = blockState.with(FACING, Direction.WEST);
-                            blockState = blockState.with(HALF, shape==0b00111011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b00111011 ? "bottom" : "top");
                         }
                         break;
-                    case 6: blockState = blockState.with(SHAPE, "straight");
+                    case 6: blockState = blockState.with((EnumProperty) properties.get("shape"), "straight");
                         if (NW_full && NE_full) {
-                            blockState = blockState.with(FACING, Direction.NORTH);
-                            blockState = blockState.with(HALF, shape==0b01110111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b01110111 ? "bottom" : "top");
                         }
                         if (NE_full && SE_full) {
-                            blockState = blockState.with(FACING, Direction.EAST);
-                            blockState = blockState.with(HALF, shape==0b11110011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b11110011 ? "bottom" : "top");
                         }
                         if (SE_full && SW_full) {
-                            blockState = blockState.with(FACING, Direction.SOUTH);
-                            blockState = blockState.with(HALF, shape==0b10111011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b10111011 ? "bottom" : "top");
                         }
                         if (SW_full && NW_full) {
-                            blockState = blockState.with(FACING, Direction.WEST);
-                            blockState = blockState.with(HALF, shape==0b00111111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b00111111 ? "bottom" : "top");
                         }
                         break;
-                    case 7: blockState = blockState.with(SHAPE, "inner_left");
+                    case 7: blockState = blockState.with((EnumProperty) properties.get("shape"), "inner_left");
                         if (!NW_full) {
-                            blockState = blockState.with(FACING, Direction.SOUTH);
-                            blockState = blockState.with(HALF, shape==0b11111011 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b11111011 ? "bottom" : "top");
                         }
                         if (!NE_full) {
-                            blockState = blockState.with(FACING, Direction.WEST);
-                            blockState = blockState.with(HALF, shape==0b10111111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b10111111 ? "bottom" : "top");
                         }
                         if (!SE_full) {
-                            blockState = blockState.with(FACING, Direction.NORTH);
-                            blockState = blockState.with(HALF, shape==0b01111111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b01111111 ? "bottom" : "top");
                         }
                         if (!SW_full) {
-                            blockState = blockState.with(FACING, Direction.EAST);
-                            blockState = blockState.with(HALF, shape==0b11110111 ? "bottom" : "top");
+                            blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);
+                            blockState = blockState.with((EnumProperty) properties.get("half"), shape==0b11110111 ? "bottom" : "top");
                         }
                 }
                 break;
-            case "_vertical_corner": blockState = blockState.with(LAYER4, 3);
-                if (SE) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (SW) {blockState = blockState.with(FACING, Direction.WEST);}
-                if (NW) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (NE) {blockState = blockState.with(FACING, Direction.EAST);}
+            case "_vertical_corner":
+                if(properties.containsKey("layer")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layer"),  3);
+                }
+                if (SE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (SW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
+                if (NW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (NE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
                 break;
-            case "_quarter_slab": blockState = blockState.with(LAYER3, 2);
-                blockState = blockState.with(TYPE, upper ? "bottom" : "top");
-                if (N) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (S) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (W) {blockState = blockState.with(FACING, Direction.WEST);}
-                if (E) {blockState = blockState.with(FACING, Direction.EAST);}
+            case "_quarter_slab":
+                if(properties.containsKey("layer")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layer"),  2);
+                }
+                blockState = blockState.with((EnumProperty) properties.get("type"), upper ? "bottom" : "top");
+                if (N) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (S) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (W) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
+                if (E) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
                 break;
-            case "_vertical_quarter": blockState = blockState.with(LAYER4, 3);
-                if (!SE) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (!SW) {blockState = blockState.with(FACING, Direction.EAST);}
-                if (!NW) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (!NE) {blockState = blockState.with(FACING, Direction.WEST);}
+            case "_vertical_quarter":
+                if(properties.containsKey("layer")) {
+                    blockState = blockState.with((IntegerProperty) properties.get("layer"),  3);
+                }
+                if (!SE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (!SW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
+                if (!NW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (!NE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
                 break;
-            case "_eighth_slab": blockState = blockState.with(TYPE, upper ? "bottom" : "top");
-                if (!SE) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (!SW) {blockState = blockState.with(FACING, Direction.EAST);}
-                if (!NW) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (!NE) {blockState = blockState.with(FACING, Direction.WEST);}
+            case "_eighth_slab":
+                blockState = blockState.with((EnumProperty) properties.get("type"), upper ? "bottom" : "top");
+                if (!SE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (!SW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
+                if (!NW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (!NE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
                 break;
-            case "_corner_slab": blockState = blockState.with(TYPE, upper ? "bottom" : "top");
-                if (SE) {blockState = blockState.with(FACING, Direction.SOUTH);}
-                if (SW) {blockState = blockState.with(FACING, Direction.WEST);}
-                if (NW) {blockState = blockState.with(FACING, Direction.NORTH);}
-                if (NE) {blockState = blockState.with(FACING, Direction.EAST);}
+            case "_corner_slab": blockState = blockState.with((EnumProperty) properties.get("type"), upper ? "bottom" : "top");
+                if (SE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);}
+                if (SW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);}
+                if (NW) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);}
+                if (NE) {blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);}
                 break;
             case "_vertical_corner_slab":
                 if (N) {
-                    blockState = blockState.with(FACING, Direction.NORTH);
+                    blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
                     if (SE_full) {
-                        blockState = blockState.with(HINGE, "left");
-                        blockState = blockState.with(TYPE, shape==0b10100010 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "left");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b10100010 ? "bottom" : "top");
                     }
                     else {
-                        blockState = blockState.with(HINGE, "right");
-                        blockState = blockState.with(TYPE, shape==0b00101010 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "right");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b00101010 ? "bottom" : "top");
                     }
                 }
                 if (S) {
-                    blockState = blockState.with(FACING, Direction.SOUTH);
+                    blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
                     if (NW_full) {
-                        blockState = blockState.with(HINGE, "right");
-                        blockState = blockState.with(TYPE, shape==0b00010101 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "right");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b00010101 ? "bottom" : "top");
                     }
                     else {
-                        blockState = blockState.with(HINGE, "left");
-                        blockState = blockState.with(TYPE, shape==0b01010001 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "left");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b01010001 ? "bottom" : "top");
                     }
 
                 }
                 if (W) {
-                    blockState = blockState.with(FACING, Direction.WEST);
+                    blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
                     if (NE_full) {
-                        blockState = blockState.with(HINGE, "right");
-                        blockState = blockState.with(TYPE, shape==0b01110000 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "right");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b01110000 ? "bottom" : "top");
                     }
                     else {
-                        blockState = blockState.with(HINGE, "left");
-                        blockState = blockState.with(TYPE, shape==0b10110000 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "left");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b10110000 ? "bottom" : "top");
                     }
 
                 }
                 if (E) {
-                    blockState = blockState.with(FACING, Direction.EAST);
+                    blockState = blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);
                     if (SW_full) {
-                        blockState = blockState.with(HINGE, "left");
-                        blockState = blockState.with(TYPE, shape==0b00001011 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "left");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b00001011 ? "bottom" : "top");
                     }
                     else {
-                        blockState = blockState.with(HINGE, "right");
-                        blockState = blockState.with(TYPE, shape==0b00000111 ? "bottom" : "top");
+                        blockState = blockState.with((EnumProperty) properties.get("hinge"), "right");
+                        blockState = blockState.with((EnumProperty) properties.get("type"), shape==0b00000111 ? "bottom" : "top");
                     }
                 }
         }
         return blockState;
     }
     private String getSubBlock(BlockVector3 position, int subBlockPosition) {
-        BlockState block = this.editSession.getBlock(position);
-        if (block==null) {block = BlockTypes.AIR.getDefaultState();} // replace null by air block
-        String blockId = block.getBlockType().getId();
-
         // 'subBlockPosition': position inside the block at 'position' coded as binary number (xyz) with coordinates x,y,z=0 or 1
         // translate from (subBlockPosition, blockId) to either air or a full block of same material:
 
-        // 1) separate material name and translate to the minecraft name (e.g. "stone" from "stone_stairs" but also from "limestone_slab")
-        int i = separatorIndex(blockId);
-        String material = i==-1 ? fixConquestNames(blockId,"") : fixConquestNames(blockId.substring(0,i),"");
-        String blockVariant = i==-1 ? "" : blockId.substring(i+1);
-
-        // 2) get a Map encoding all the relevant block-states and ...
-        Map<String, Object> blockStates = new HashMap<>();
-        for (Map.Entry<Property<?>, Object> entry : block.getStates().entrySet()) {
-            String propertyName = entry.getKey().getName();
-            Object propertyValue = entry.getValue();
-            blockStates.put(propertyName, (propertyValue instanceof String) ? ((String)propertyValue).toLowerCase(Locale.ROOT) : propertyValue);
+        String material;
+        boolean is_waterlogged=false;
+        boolean subBlockEmpty=false;
+        /*if (this.toDoList.containsKey(position)) {
+            material = this.toDoList.get(position)[subBlockPosition];
+            if (material.equals("minecraft:air") || material.equals("minecraft:cave_air") || material.equals("minecraft:void_air") || material.equals("minecraft:lava"))
+                {subBlockEmpty = true;}
+            else {if (material.equals("minecraft:water"))
+                {subBlockEmpty = true; is_waterlogged=true;}}
         }
-        // 3) ... put it through a translation map to tell you whether to place "material" or "air" or "water" (when waterlogged)
-        if ((blockShape(blockId, blockVariant, blockStates) & (1 << subBlockPosition)) != 0){
+        else {*/
+            // 1) get block from edit session
+            BlockState block = this.editSession.getBlock(position);
+            if (block==null) {block = BlockTypes.AIR.getDefaultState();} // replace null by air block
+            String blockId = block.getBlockType().getId();
+
+            // 2) separate material name and translate to the minecraft name (e.g. "stone" from "stone_stairs" but also from "limestone_slab")
+            int i = separatorIndex(blockId);
+            material = i==-1 ? fixConquestNames(blockId,"") : fixConquestNames(blockId.substring(0,i),"");
+            String blockVariant = i==-1 ? "" : blockId.substring(i+1);
+
+            // 3) test if the block is waterlogged
+            for (Map.Entry<Property<?>, Object> entry : block.getStates().entrySet()) {
+                if(entry.getKey().getName().equals("waterlogged")) {is_waterlogged = (boolean) entry.getValue();}
+            }
+            // 4) ... put it through a translation map to tell you whether to place "material" or "air" or "water" (when waterlogged)
+            subBlockEmpty = ((blockShape(material, blockVariant, block, position, true) & (1 << subBlockPosition)) == 0);
+        //}
+        if (!subBlockEmpty){
             return material;
         }
-        else if (blockStates.containsKey("waterlogged") ? (boolean) blockStates.get("waterlogged") : false) {
-            // water
+        else if (is_waterlogged) {
             return "minecraft:water";
         }
         else {
-            //air
             return "minecraft:air";
         }
     }
@@ -725,7 +882,8 @@ public abstract class AbstractBrush implements Brush {
         return 4*Math.floorMod(diff.getX(),2) + 2*Math.floorMod(diff.getY(),2) + Math.floorMod(diff.getZ(),2);
     }
 
-    // original (except for perform and all the getBlock[Data]/setBlock methods)
+    // original TerraSniper source code (except for perform and all the getBlock[Data]/setBlock methods):
+
     @Override
     public void handleCommand(String[] parameters, Snipe snipe) {
         Sniper sniper = snipe.getSniper();
@@ -785,6 +943,7 @@ public abstract class AbstractBrush implements Brush {
         this.editSession = editSession;
         this.targetBlock = targetBlock;
         this.lastBlock = lastBlock;
+        this.action = action;
         this.useSmallBlocks = this.canUseSmallBlocks && snipe.getSniper().smallBlocksEnabled();
 
         if (useSmallBlocks) {
@@ -879,17 +1038,11 @@ public abstract class AbstractBrush implements Brush {
                             else {
                                 // 1) extract block variant (stairs/slab/quarter_slab/...)
                                 int index = separatorIndex(blockId);
+                                String blockMaterial = index==-1 ? fixConquestNames(blockId,"") : fixConquestNames(blockId.substring(0,index),"");
                                 String blockVariant = index==-1 ? "" : blockId.substring(index+1);
 
-                                // 2) get a Map encoding all the relevant block-states and ...
-                                Map<String, Object> blockStates = new HashMap<>();
-                                for (Map.Entry<Property<?>, Object> entr : blockState.getStates().entrySet()) {
-                                    String propertyName = entr.getKey().getName();
-                                    Object propertyValue = entr.getValue();
-                                    blockStates.put(propertyName, (propertyValue instanceof String) ? ((String)propertyValue).toLowerCase(Locale.ROOT) : propertyValue);
-                                }
-                                // 3) ... obtain the block shape
-                                neighbors[i] = blockShape(blockId, blockVariant, blockStates);
+                                // 2) obtain the block shape
+                                neighbors[i] = blockShape(blockMaterial, blockVariant, blockState, neighborPositions[i], false);
                             }
                         }
                     }
@@ -913,8 +1066,16 @@ public abstract class AbstractBrush implements Brush {
                 }
 
                 // finally set the block:
-                try {
-                    this.editSession.setBlock(position, composeBlock(block.material, newShape, block.waterlogged));
+                try {/*
+                    System.out.println(" --------------------------------------------------------------------------------------------------------------------------------");
+                    System.out.println("position:   "+position.toString());
+                    System.out.println("material:   "+block.material);
+                    System.out.println("plan shape: "+Integer.toBinaryString(block.shape));
+                    System.out.println("set shape:  "+Integer.toBinaryString(newShape));
+                    */
+                    BlockState blockState = composeBlock(block.material, newShape, block.waterlogged);
+                    //System.out.println("blockState: "+blockState.toString());
+                    this.editSession.setBlock(position, blockState);
                 } catch (MaxChangedBlocksException except) {
                     except.printStackTrace();
                 }
@@ -1118,7 +1279,6 @@ public abstract class AbstractBrush implements Brush {
         return this.settings;
     }
 
-
     class BlockInformation {
         final String material;
         final int shape;
@@ -1129,12 +1289,5 @@ public abstract class AbstractBrush implements Brush {
             this.waterlogged = waterlogged;
         }
     }
-
-    // WIP
-    class EditSessionWrapper {
-        private EditSession editSession;
-        EditSessionWrapper(EditSession editSession) {
-            this.editSession = editSession;
-        }
-    }
 }
+
