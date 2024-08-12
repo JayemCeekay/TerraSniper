@@ -39,6 +39,7 @@ public class BrushRegistrar {
         this.registerCleanSnowBrush();
         this.registerVoxelDiscBrush();
         this.registerVoxelDiscFaceBrush();
+        this.registerWaterLevelBrush();
         this.registerBlobBrush();
         this.registerBlendVoxelBrush();
         this.registerBlendVoxelDiscBrush();
@@ -323,7 +324,6 @@ public class BrushRegistrar {
     private void registerLineBrush() {
         BrushProperties properties = BrushProperties.builder()
                 .name("Line")
-                .alias("l")
                 .alias("line")
                 .brushPatternType(BrushPatternType.PATTERN)
                 .creator(LineBrush::new)
@@ -549,6 +549,18 @@ public class BrushRegistrar {
                 .alias("voxel_disc_face")
                 .brushPatternType(BrushPatternType.PATTERN)
                 .creator(VoxelDiscFaceBrush::new)
+                .build();
+        this.registry.register(properties);
+    }
+
+    private void registerWaterLevelBrush() {
+        BrushProperties properties = BrushProperties.builder()
+                .name("Water Level")
+                .alias("w")
+                .alias("water")
+                .alias("waterlevel")
+                .brushPatternType(BrushPatternType.PATTERN)
+                .creator(WaterLevelBrush::new)
                 .build();
         this.registry.register(properties);
     }
