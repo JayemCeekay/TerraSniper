@@ -3,7 +3,7 @@ package com.jayemceekay.terrasniper.brush.type.performer;
 import com.jayemceekay.terrasniper.sniper.snipe.Snipe;
 import com.jayemceekay.terrasniper.sniper.snipe.message.SnipeMessenger;
 import com.sk89q.worldedit.MaxChangedBlocksException;
-import com.sk89q.worldedit.forge.ForgeAdapter;
+import com.jayemceekay.terrasniper.util.PlatformAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.world.World;
@@ -14,10 +14,13 @@ import net.minecraft.world.entity.player.Player;
 public class LineBrush extends AbstractPerformerBrush {
     private static final Vector3 HALF_BLOCK_OFFSET = Vector3.at(0.5D, 0.5D, 0.5D);
     private Vector3 originCoordinates;
+    private Vector3 originCoordinatesFullBlock;
+    private Vector3 originOffsetCoordinates;
     private Vector3 targetCoordinates;
     private World targetWorld;
 
     public LineBrush() {
+        setAdditiveBrush(false);
     }
 
     public void loadProperties() {
@@ -35,8 +38,10 @@ public class LineBrush extends AbstractPerformerBrush {
     public void handleArrowAction(Snipe snipe) {
         BlockVector3 targetBlock = this.getTargetBlock();
         Player player = snipe.getSniper().getPlayer();
-        this.originCoordinates = targetBlock.toVector3();
-        this.targetWorld = ForgeAdapter.adapt(player.getServer().getLevel(player.level().dimension()));
+        this.originCoordinatesFullBlock = targetBlock.toVector3();
+        this.setOffsetVector(snipe);
+        this.originOffsetCoordinates = this.offsetVector.toVector3();
+        this.targetWorld = PlatformAdapter.adapt(player.getServer().getLevel(player.level().dimension()));
         SnipeMessenger messenger = snipe.createMessenger();
         messenger.sendMessage(ChatFormatting.DARK_PURPLE + "First point selected.");
     }
@@ -44,8 +49,15 @@ public class LineBrush extends AbstractPerformerBrush {
     public void handleGunpowderAction(Snipe snipe) {
         BlockVector3 targetBlock = this.getTargetBlock();
         World world = this.getEditSession().getWorld();
-        if (this.originCoordinates != null && world.equals(this.targetWorld)) {
+        if (this.originCoordinatesFullBlock != null && world.equals(this.targetWorld)) {
             this.targetCoordinates = targetBlock.toVector3();
+
+            if(this.useSmallBlocks) {
+                this.originCoordinates = this.originCoordinatesFullBlock.add(this.originOffsetCoordinates).subtract(this.offsetVector.toVector3());
+            }
+            else {
+                this.originCoordinates = this.originCoordinatesFullBlock;
+            }
 
             try {
                 this.lineGunpowder();

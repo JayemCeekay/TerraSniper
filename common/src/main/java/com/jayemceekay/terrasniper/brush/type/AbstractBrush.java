@@ -47,9 +47,10 @@ public abstract class AbstractBrush implements Brush {
     private EditSession editSession;
     private BlockVector3 targetBlock;
     private BlockVector3 lastBlock;
-    private Map<BlockVector3, String[]> toDoList;
-    private BlockVector3 offsetVector;
+    protected Map<BlockVector3, String[]> toDoList;
+    protected BlockVector3 offsetVector;
     private boolean additiveBrush = true; //whether the arrow action adds or removes blocks
+    protected static final int LAYER_UP=1, LAYER_DOWN=2, LAYER_NORTH=3, LAYER_EAST=4, LAYER_SOUTH=5, LAYER_WEST=6;
 
     // maps from {0, 1, 2, ... , 255} to the set of possible block shapes (block shapes being encoded as 8 bit numbers, see below):
     private static final Map<Integer,Set<Integer>> GET_SHAPE_ADDITIVE = new HashMap<>();
@@ -310,7 +311,7 @@ public abstract class AbstractBrush implements Brush {
         }
         return binaryCrossSum;
     }
-    private static String fixConquestNames(String material, String variant) {
+    protected static String fixConquestNames(String material, String variant) {
         int i = material.indexOf(":") + 1;
         String blockName = material.substring(i);
         String origin = material.substring(0,i);
@@ -352,7 +353,7 @@ public abstract class AbstractBrush implements Brush {
         }
         return "minecraft:air";
     }
-    private static int separatorIndex(String blockId) { // returns index of first "_" character that separates the block name from the variation (e.g. limestone_slab)
+    protected static int separatorIndex(String blockId) { // returns index of first "_" character that separates the block name from the variation (e.g. limestone_slab)
         int index;
         for (String variant : VARIANTS) {
             index = blockId.indexOf(variant);
@@ -373,7 +374,7 @@ public abstract class AbstractBrush implements Brush {
             default -> null;
         };
     }
-    private int blockShape(String material, String blockVariant, BlockState block, BlockVector3 position, boolean adjust) {
+    protected int blockShape(String material, String blockVariant, BlockState block, BlockVector3 position, boolean adjust) {
         //returns an int from 0 to 255 encoding the block shape, i.e. which 1/8-sub-blocks are present
         // (assuming that for each of the variants all the relevant state-value pairs exist in 'blockStates')
         boolean waterlogged=false;
@@ -386,7 +387,7 @@ public abstract class AbstractBrush implements Brush {
             blockStates.put(propertyName, (propertyValue instanceof String) ? ((String)propertyValue).toLowerCase(Locale.ROOT) : propertyValue);
         }
 
-        int height;
+        int[] height;
         String half;
         int full = 0b11111111;
         switch(blockVariant){
@@ -394,21 +395,19 @@ public abstract class AbstractBrush implements Brush {
             case "layer":
             case "slab":
                 height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
-                if(height==0) {return 0;}
-                if(height==2) {return full;}
+                if(height[1]==8) {return 0b11111111;}
                 switch((String)safeCall(blockStates, "type")){
-                    case "bottom": return 0b00110011;
-                    case "top":    return 0b11001100;
+                    case "bottom": return (LAYER_DOWN<<11) + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b00110011));
+                    case "top":    return (LAYER_UP<<11)   + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b11001100));
                 }
             case "vertical_slab":
                 height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
-                if(height==0) {return 0;}
-                if(height==2) {return full;}
+                if(height[1]==8) {return 0b11111111;}
                 switch((Direction)safeCall(blockStates, "facing")){
-                    case NORTH: return 0b10101010;
-                    case EAST:  return 0b00001111;
-                    case SOUTH: return 0b01010101;
-                    case WEST:  return 0b11110000;
+                    case NORTH: return (LAYER_SOUTH<<11) + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b10101010));
+                    case EAST:  return (LAYER_WEST<<11)  + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b00001111));
+                    case SOUTH: return (LAYER_NORTH<<11) + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b01010101));
+                    case WEST:  return (LAYER_EAST<<11)  + (height[1]<<8) + (height[0]==0 ? 0 : (height[0]==2 ? full : 0b11110000));
                 }
             case "stairs": half = (String)safeCall(blockStates, "half");
                 switch((Direction)safeCall(blockStates, "facing")){
@@ -443,8 +442,8 @@ public abstract class AbstractBrush implements Brush {
                 }
             case "vertical_corner":
                 height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
-                if(height==0) {return 0;}
-                if(height==2) {return full;}
+                if(height[0]==0) {return 0;}
+                if(height[0]==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
                     case NORTH: return 0b11111010;
                     case EAST:  return 0b10101111;
@@ -453,8 +452,8 @@ public abstract class AbstractBrush implements Brush {
                 }
             case "quarter_slab":
                 height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
-                if(height==0) {return 0;}
-                if(height==2) {return full;}
+                if(height[0]==0) {return 0;}
+                if(height[0]==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
                     case NORTH:   switch((String)safeCall(blockStates, "type")) {
                         case "bottom":  return 0b00100010;
@@ -475,8 +474,8 @@ public abstract class AbstractBrush implements Brush {
                 }
             case "vertical_quarter":
                 height = fixLayers(material, blockStates, block, position, waterlogged, adjust);
-                if(height==0) {return 0;}
-                if(height==2) {return full;}
+                if(height[0]==0) {return 0;}
+                if(height[0]==2) {return full;}
                 switch((Direction)safeCall(blockStates, "facing")){
                     case NORTH:   return 0b10100000;
                     case EAST:    return 0b00001010;
@@ -520,49 +519,50 @@ public abstract class AbstractBrush implements Brush {
         }
     }
 
-    private int fixLayers(String material, Map<String, Object> blockStates, BlockState block, BlockVector3 position, boolean waterlogged, boolean adjust) {
+    private int[] fixLayers(String material, Map<String, Object> blockStates, BlockState block, BlockVector3 position, boolean waterlogged, boolean adjust) {
         var properties = block.getBlockType().getPropertyMap();
         int layers=0; // layers that will be set using setBlock
-        int height=0; // height of the block: 0=empty, 1=half, 2=full
+        int type=0; // height of the block: 0=empty, 1=half, 2=full
+        int eighths=0; // actual height of the block in units of 1/8th block
         boolean adds = (this.action == ToolAction.ARROW) == this.additiveBrush;
         boolean is_valid = false;
         String property_name="";
         if (blockStates.containsKey("layers")) { // for 8-layered blocks (only slabs)
             property_name = "layers"; layers = 4;
             switch((Integer) blockStates.get("layers")) {
-                case 1:
-                case 2:
-                case 3: height = adds ? 1 : 0;  break;
-                case 4: height = 1;  is_valid = true;  break;
-                case 5:
-                case 6: height = adds ? 2 : 1; break;
-                case 7:
-                case 8: height = 2;
+                case 1: eighths = 1; type = adds ? 1 : 0;  break;
+                case 2: eighths = 2; type = adds ? 1 : 0;  break;
+                case 3: eighths = 3; type = adds ? 1 : 0;  break;
+                case 4: eighths = 4; type = 1;  is_valid = true;  break;
+                case 5: eighths = 5; type = adds ? 2 : 1; break;
+                case 6: eighths = 6; type = adds ? 2 : 1; break;
+                case 7: eighths = 7; type = 2; break;
+                case 8: eighths = 8; type = 2;
             }
 
         }
         else { if (blockStates.containsKey("layer4")) { // for 4-layered blocks (vertical and some of the horizontal slabs, vertical quarters)
             property_name = "layer"; layers = 3;
             switch((Integer) blockStates.get("layer4")) {
-                case 1:
-                case 2: height = adds ? 1 : 0;  break;
-                case 3: height = 1;  is_valid = true;  break;
-                case 4: height = adds ? 2 : 1;
+                case 1: eighths = 1; type = adds ? 1 : 0;  break;
+                case 2: eighths = 2; type = adds ? 1 : 0;  break;
+                case 3: eighths = 4; type = 1;  is_valid = true;  break;
+                case 4: eighths = 6; type = adds ? 2 : 1;
             }
         }
         else { if (blockStates.containsKey("layer3")) { // for 3-layered blocks (i.e. quarter slabs)
             property_name = "layer"; layers = 2;
             switch((Integer) blockStates.get("layer3")) {
-                case 1: height = adds ? 1 : 0;  break;
-                case 2: height = 1;  is_valid = true;  break;
-                case 3: height = adds ? 2 : 1;
+                case 1: eighths = 2; type = adds ? 1 : 0;  break;
+                case 2: eighths = 4; type = 1;  is_valid = true;  break;
+                case 3: eighths = 6; type = adds ? 2 : 1;
             }
         }
         else { // for non-layered blocks (minecraft slabs + some conquest slabs, e.g. the "... dwarven design" blocks)
-            height = 1;  is_valid = true;
+            type = 1;  is_valid = true;
         }}}
         if(!is_valid && adjust) { // if it isn't yet an empty, "half" or full block, adjust:
-            switch(height) {
+            switch(type) {
                 case 0:
                     try {this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());}
                     catch (MaxChangedBlocksException except) {except.printStackTrace();} break;
@@ -576,11 +576,12 @@ public abstract class AbstractBrush implements Brush {
             }
 
         }
-        return (height);
+        return (new int[] {type,eighths});
     }
 
-    private static int nExposedFaces(int shape, int[] neighbors) {
+    private static int nExposedFaces(int full_shape, int[] neighbors) {
         int N = 0;
+        int shape = full_shape % (1<<8);
         // add silhouettes in x-/y-/z- directions
         N += (shape & 0b00000011) !=0 ? 2 : 0;
         N += (shape & 0b00001100) !=0 ? 2 : 0;
@@ -602,15 +603,101 @@ public abstract class AbstractBrush implements Brush {
         int[] n = new int[]{4,5,6,7, 0,1,2,3, 2,3,6,7, 0,1,4,5, 1,3,5,7, 0,2,4,6};
         int[] m = new int[]{0,1,2,3, 4,5,6,7, 0,1,4,5, 2,3,6,7, 0,2,4,6, 1,3,5,7};
         for (int i=0; i<24; i++) {
-            N -= ((shape & 1<<n[i]) != 0 && (neighbors[I[i]] & 1<<m[i]) != 0) ? 1 : 0;
+            N -= ((shape & 1<<n[i]) != 0 && ((neighbors[I[i]] % (1<<8)) & 1<<m[i]) != 0) ? 1 : 0;
         }
 
         return N;
     }
 
     // some non-static methods (because they need the 'offsetVector' or 'additive' field or the getBlock method):
-    private BlockState composeBlock(String material, int shape, boolean waterlogged) {
+    protected BlockState composeBlock(String material, int full_shape, boolean waterlogged) {
         int binaryCrossSum;
+        int layer_shape = full_shape >> 8;
+        int direction = layer_shape >> 3;
+        int shape = full_shape % (1<<8);
+
+        if (direction!=0) {
+
+            int height = layer_shape % (1<<3); // height in 1/8th blocks
+
+            System.out.println("running fixConquestNames(" + material + ", " + ((direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab")+")");
+            // create the BlockState object representing the block to be placed:
+            BlockState blockState = BlockTypes.get(fixConquestNames(material, (direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab")).getDefaultState(); // fixConquestNames returns a valid block-ID like "conquest:limestone_vertical_corner" or "minecraft:stone_stairs"
+            var properties = blockState.getBlockType().getPropertyMap();
+
+            String layerPropertyName = "layers";
+            int layers=height;
+
+            boolean adds = (this.action == ToolAction.ARROW) == this.additiveBrush;
+            for (Map.Entry<Property<?>, Object> entry : blockState.getStates().entrySet()) {
+                String propertyName = entry.getKey().getName();
+                if (propertyName.equals("layer")) {
+                    layerPropertyName = "layer";
+                    if (entry.getKey().getValues().size() == 4) { // 4-layer
+                        switch (height) {
+                            case 1: layers = 1; break;
+                            case 2: layers = 2; break;
+                            case 3: layers = adds ? 3 : 2; break;
+                            case 4: layers = 3; break;
+                            case 5: layers = adds ? 4 : 3; break;
+                            case 6: layers = 4; break;
+                            case 7: layers = adds ? 8 : 4; break;
+                            case 8: layers = 8;
+                        }
+                    } else { // 3-layer
+                        switch (height) {
+                            case 1:
+                                layers = adds ? 1 : 0;
+                                break;
+                            case 2:
+                                layers = 1;
+                                break;
+                            case 3:
+                                layers = adds ? 2 : 1;
+                                break;
+                            case 4:
+                                layers = 2;
+                                break;
+                            case 5:
+                                layers = adds ? 3 : 2;
+                                break;
+                            case 6:
+                                layers = 3;
+                                break;
+                            case 7:
+                                layers = adds ? 8 : 3;
+                                break;
+                            case 8:
+                                layers = 8;
+                        }
+                    }
+                    break;
+                }
+            }
+            if (layers == 8) { // full block
+                if(HAS_NO_FULL_BLOCK.contains(material)) {
+                    blockState = BlockTypes.get(material+"_layer").getDefaultState();
+                    return blockState.with((IntegerProperty) blockState.getBlockType().getPropertyMap().get("layers"), 8);
+                }
+                return (BlockTypes.get(material)).getDefaultState();
+            }
+            if (layers == 0) { // air or water
+                return BlockTypes.get(waterlogged ? "minecraft:water" : "minecraft:air").getDefaultState();
+            }
+            // main case: set the required number of layers
+            blockState = blockState.with((BooleanProperty) properties.get("waterlogged"), waterlogged);
+            blockState = switch (direction) {
+                case LAYER_UP    -> blockState.with((EnumProperty) properties.get("type"), "top");
+                case LAYER_DOWN  -> blockState.with((EnumProperty) properties.get("type"), "bottom");
+                case LAYER_NORTH -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
+                case LAYER_EAST  -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
+                case LAYER_SOUTH -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
+                case LAYER_WEST  -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.EAST);
+                default -> blockState;
+            };
+            return blockState.with((IntegerProperty) properties.get(layerPropertyName), layers);
+        }
+
         if (shape==0b11111111) { // full block
             if(HAS_NO_FULL_BLOCK.contains(material)) {
                 BlockState blockState = BlockTypes.get(material+"_layer").getDefaultState();
@@ -905,13 +992,13 @@ public abstract class AbstractBrush implements Brush {
         }
     }
 
-    private void setOffsetVector(Snipe snipe) {
+    protected void setOffsetVector(Snipe snipe) {
         // use player data to determine which subblock you're looking at:
         Sniper sniper = snipe.getSniper();
         Player player = sniper.getPlayer();
 
         // the exact point on the hitbox of the block the player is looking at
-        Vector3 location = PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getLocation());
+        Vector3 location = PlatformAdapter.adapt(       player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getLocation());
 
         // a normal vector to the surface (i.e. pointing to the outside of the targeted sub-block)
         Vector3 normal = PlatformAdapter.adapt(new Vec3(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getDirection().step()));
@@ -932,10 +1019,9 @@ public abstract class AbstractBrush implements Brush {
         if (Math.abs(dz - 0.5)<eps) {subBlock1 = subBlock1.withZ(1); uncertain = true;}
         else if (dz>0.5)            {subBlock1 = subBlock1.withZ(1); subBlock2 = subBlock2.withZ(1);}
 
-        // in case 'location' is exactly in between two sub-blocks (which is very likely),
+        // in case 'location' is exactly in between two sub-blocks (which is very likely!),
         // use normal vector to determine which sub-block is targeted:
         this.offsetVector = targetBlock.add(uncertain && (((subBlock1.toVector3().multiply(0.5).add(Vector3.ONE.multiply(0.25))).subtract(dx,dy,dz)).dot(normal)<0) ? subBlock1 : subBlock2);
-
     }
 
     @Override
@@ -1059,7 +1145,7 @@ public abstract class AbstractBrush implements Brush {
                             min = n;
                             newShape = candidate;
                         }
-                        else if (n==min && binaryCrossSum(candidate)==6) { // give priority for stairs/corner-blocks, looks better oftentimes
+                        else if (n==min && binaryCrossSum(candidate % (1<<8))==6) { // give priority for stairs/corner-blocks, looks better oftentimes
                             newShape = candidate;
                         }
                     }
@@ -1290,4 +1376,3 @@ public abstract class AbstractBrush implements Brush {
         }
     }
 }
-

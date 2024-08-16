@@ -57,6 +57,7 @@ public class BrushRegistrar {
         this.registerFillDownBrush();
         this.registerJaggedLineBrush();
         this.registerLineBrush();
+        this.registerLayerBrush();
         this.registerOverlayBrush();
         this.registerPullBrush();
         this.registerRandomErodeBrush();
@@ -327,6 +328,17 @@ public class BrushRegistrar {
                 .alias("line")
                 .brushPatternType(BrushPatternType.PATTERN)
                 .creator(LineBrush::new)
+                .build();
+        this.registry.register(properties);
+    }
+
+    private void registerLayerBrush() {
+        BrushProperties properties = BrushProperties.builder()
+                .name("Layer")
+                .alias("l")
+                .alias("layer")
+                .brushPatternType(BrushPatternType.ANY)
+                .creator(LayerBrush::new)
                 .build();
         this.registry.register(properties);
     }

@@ -25,12 +25,17 @@ public class CopyPastaBrush extends AbstractBrush {
     private int numBlocks;
     private int[] firstPoint = new int[3];
     private int[] secondPoint = new int[3];
+    private int[] firstPointFullBlock = new int[3];
+    private int[] secondPointFullBlock = new int[3];
+    private int[] firstOffsetPoint = new int[3];
+    private int[] secondOffsetPoint = new int[3];
     private BlockType[] blockArray;
     private BlockState[] dataArray;
     private int pivot;
 
     public CopyPastaBrush() {
-        setCanUseSmallBlocks(false);
+        setCanUseSmallBlocks(true);
+        setAdditiveBrush(false);
     }
 
     public void loadProperties() {
@@ -79,20 +84,32 @@ public class CopyPastaBrush extends AbstractBrush {
         SnipeMessenger messenger = snipe.createMessenger();
         BlockVector3 targetBlock = this.getTargetBlock();
         if (this.points == 0) {
-            this.firstPoint[0] = targetBlock.getX();
-            this.firstPoint[1] = targetBlock.getY();
-            this.firstPoint[2] = targetBlock.getZ();
+            this.firstPointFullBlock[0] = targetBlock.getX();
+            this.firstPointFullBlock[1] = targetBlock.getY();
+            this.firstPointFullBlock[2] = targetBlock.getZ();
+            this.setOffsetVector(snipe);
+            this.firstOffsetPoint[0] = this.offsetVector.getX();
+            this.firstOffsetPoint[1] = this.offsetVector.getY();
+            this.firstOffsetPoint[2] = this.offsetVector.getZ();
             messenger.sendMessage(ChatFormatting.GRAY + "First point");
             this.points = 1;
         } else if (this.points == 1) {
-            this.secondPoint[0] = targetBlock.getX();
-            this.secondPoint[1] = targetBlock.getY();
-            this.secondPoint[2] = targetBlock.getZ();
+            this.secondPointFullBlock[0] = targetBlock.getX();
+            this.secondPointFullBlock[1] = targetBlock.getY();
+            this.secondPointFullBlock[2] = targetBlock.getZ();
+            this.setOffsetVector(snipe);
+            this.secondOffsetPoint[0] = this.offsetVector.getX();
+            this.secondOffsetPoint[1] = this.offsetVector.getY();
+            this.secondOffsetPoint[2] = this.offsetVector.getZ();
             messenger.sendMessage(ChatFormatting.GRAY + "Second point");
             this.points = 2;
         } else {
             this.firstPoint = new int[3];
             this.secondPoint = new int[3];
+            this.firstPointFullBlock = new int[3];
+            this.secondPointFullBlock = new int[3];
+            this.firstOffsetPoint = new int[3];
+            this.secondOffsetPoint = new int[3];
             this.numBlocks = 0;
             this.blockArray = new BlockType[1];
             this.dataArray = new BlockState[1];
@@ -106,7 +123,21 @@ public class CopyPastaBrush extends AbstractBrush {
         SnipeMessenger messenger = snipe.createMessenger();
         if (this.points == 2) {
             if (this.numBlocks == 0) {
+                if(this.useSmallBlocks) {
+                    this.firstPoint[0]  = this.firstPointFullBlock[0]  + this.firstOffsetPoint[0]  - this.offsetVector.getX();
+                    this.firstPoint[1]  = this.firstPointFullBlock[1]  + this.firstOffsetPoint[1]  - this.offsetVector.getY();
+                    this.firstPoint[2]  = this.firstPointFullBlock[2]  + this.firstOffsetPoint[2]  - this.offsetVector.getZ();
+                    this.secondPoint[0] = this.secondPointFullBlock[0] + this.secondOffsetPoint[0] - this.offsetVector.getX();
+                    this.secondPoint[1] = this.secondPointFullBlock[1] + this.secondOffsetPoint[1] - this.offsetVector.getY();
+                    this.secondPoint[2] = this.secondPointFullBlock[2] + this.secondOffsetPoint[2] - this.offsetVector.getZ();
+                }
+                else {
+                    this.firstPoint = this.firstPointFullBlock;
+                    this.secondPoint = this.secondPointFullBlock;
+                }
+
                 this.doCopy(snipe);
+
             } else if (this.numBlocks > 0 && this.numBlocks < this.blockLimit) {
                 BlockVector3 targetBlock = this.getTargetBlock();
                 this.pastePoint[0] = targetBlock.getX();
