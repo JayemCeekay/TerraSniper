@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 public class CopyPastaBrush extends AbstractBrush {
-    private static final int BLOCK_LIMIT = 10000;
+    private static final int BLOCK_LIMIT = 1000000;
     private final int[] pastePoint = new int[3];
     private final int[] minPoint = new int[3];
     private final int[] offsetPoint = new int[3];
@@ -39,7 +39,7 @@ public class CopyPastaBrush extends AbstractBrush {
     }
 
     public void loadProperties() {
-        this.blockLimit = 10000;
+        this.blockLimit = BLOCK_LIMIT;
     }
 
     @Override
