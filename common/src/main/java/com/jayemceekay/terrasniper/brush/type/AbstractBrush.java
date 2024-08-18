@@ -39,6 +39,9 @@ import java.util.stream.Stream;
 public abstract class AbstractBrush implements Brush {
     protected boolean useSmallBlocks = false;
     private boolean canUseSmallBlocks = true;
+    protected boolean useAutoLayer = false;
+    private boolean canUseAutoLayer = true;
+    private LayerBrush layerBrush = null;
     private ToolAction action = ToolAction.ARROW;
     protected static final int CHUNK_SIZE = 16;
     protected static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat(".##");
@@ -246,6 +249,7 @@ public abstract class AbstractBrush implements Brush {
             String rootId = BuiltInRegistries.BLOCK.getKey(variantFamily.getRoot()).toString();
             if(!rootId.equals(currentId)) {continue;}
             String vanillaName = rootId.substring(rootId.indexOf(":") + 1);
+
 
             boolean foundConquestVariant = false;
             boolean foundMinecraftStairVariant = false;
@@ -564,14 +568,14 @@ public abstract class AbstractBrush implements Brush {
         if(!is_valid && adjust) { // if it isn't yet an empty, "half" or full block, adjust:
             switch(type) {
                 case 0:
-                    try {this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());}
+                    try {this.actuallySetBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());}
                     catch (MaxChangedBlocksException except) {except.printStackTrace();} break;
                 case 1:
-                    try {this.editSession.setBlock(position, block.with((IntegerProperty) properties.get(property_name), layers));}
+                    try {this.actuallySetBlock(position, block.with((IntegerProperty) properties.get(property_name), layers));}
                     catch (MaxChangedBlocksException except) {except.printStackTrace();} break;
                 case 2:
                     BlockState fullBlock = composeBlock(material, 0b11111111, false);
-                    try {this.editSession.setBlock(position, fullBlock);}
+                    try {this.actuallySetBlock(position, fullBlock);}
                     catch (MaxChangedBlocksException except) {except.printStackTrace();}
             }
 
@@ -620,7 +624,9 @@ public abstract class AbstractBrush implements Brush {
 
             int height = layer_shape % (1<<3); // height in 1/8th blocks
 
-            System.out.println("running fixConquestNames(" + material + ", " + ((direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab")+")");
+            //System.out.println("running fixConquestNames(" + material + ", " + ((direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab")+")");
+            //System.out.println("returns: "+fixConquestNames(material, (direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab"));
+
             // create the BlockState object representing the block to be placed:
             BlockState blockState = BlockTypes.get(fixConquestNames(material, (direction==LAYER_UP || direction==LAYER_DOWN) ? "_slab" : "_vertical_slab")).getDefaultState(); // fixConquestNames returns a valid block-ID like "conquest:limestone_vertical_corner" or "minecraft:stone_stairs"
             var properties = blockState.getBlockType().getPropertyMap();
@@ -687,8 +693,8 @@ public abstract class AbstractBrush implements Brush {
             // main case: set the required number of layers
             blockState = blockState.with((BooleanProperty) properties.get("waterlogged"), waterlogged);
             blockState = switch (direction) {
-                case LAYER_UP    -> blockState.with((EnumProperty) properties.get("type"), "top");
-                case LAYER_DOWN  -> blockState.with((EnumProperty) properties.get("type"), "bottom");
+                case LAYER_UP    -> properties.containsKey("type") ? blockState.with((EnumProperty) properties.get("type"), "top")    : blockState;
+                case LAYER_DOWN  -> properties.containsKey("type") ? blockState.with((EnumProperty) properties.get("type"), "bottom") : blockState;
                 case LAYER_NORTH -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.SOUTH);
                 case LAYER_EAST  -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.WEST);
                 case LAYER_SOUTH -> blockState.with((DirectionalProperty) properties.get("facing"), Direction.NORTH);
@@ -741,6 +747,12 @@ public abstract class AbstractBrush implements Brush {
         }
 
         // create the BlockState object representing the block to be placed:
+        String blockName = material.substring(material.indexOf(":") + 1);
+        boolean adds = (this.action == ToolAction.ARROW) == this.additiveBrush;
+        if(USES_LAYER_INSTEAD_OF_SLAB.contains(blockName) && blockVariant.equals("_vertical_corner_slab")) {
+            blockVariant = adds ? "_vertical_slab" : "_quarter_slab";
+            upper = (binaryCrossSum(shape & 0b11001100)==1);
+        }
         BlockState blockState = BlockTypes.get(fixConquestNames(material, blockVariant)).getDefaultState(); // fixConquestNames returns a valid block-ID like "conquest:limestone_vertical_corner" or "minecraft:stone_stairs"
 
         var properties = blockState.getBlockType().getPropertyMap();
@@ -998,10 +1010,10 @@ public abstract class AbstractBrush implements Brush {
         Player player = sniper.getPlayer();
 
         // the exact point on the hitbox of the block the player is looking at
-        Vector3 location = PlatformAdapter.adapt(       player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getLocation());
+        Vector3 location = PlatformAdapter.adapt(       player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getLocation());
 
         // a normal vector to the surface (i.e. pointing to the outside of the targeted sub-block)
-        Vector3 normal = PlatformAdapter.adapt(new Vec3(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getDirection().step()));
+        Vector3 normal = PlatformAdapter.adapt(new Vec3(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) sniper.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getDirection().step()));
 
         double dx,dy,dz;
         dx = location.getX() - targetBlock.getX();
@@ -1031,6 +1043,7 @@ public abstract class AbstractBrush implements Brush {
         this.lastBlock = lastBlock;
         this.action = action;
         this.useSmallBlocks = this.canUseSmallBlocks && snipe.getSniper().smallBlocksEnabled();
+        this.useAutoLayer = this.canUseAutoLayer && snipe.getSniper().autoLayerEnabled();
 
         if (useSmallBlocks) {
             setOffsetVector(snipe);
@@ -1040,6 +1053,11 @@ public abstract class AbstractBrush implements Brush {
 
             this.toDoList = new HashMap<>();
             // initialize the to-do-list
+        }
+
+        if (useAutoLayer) {
+            if(this.layerBrush==null) {this.layerBrush = new LayerBrush();}
+            this.layerBrush.setBlockBuffer = new HashMap<>();
         }
 
         // perform the brush action
@@ -1161,12 +1179,28 @@ public abstract class AbstractBrush implements Brush {
                     */
                     BlockState blockState = composeBlock(block.material, newShape, block.waterlogged);
                     //System.out.println("blockState: "+blockState.toString());
-                    this.editSession.setBlock(position, blockState);
+                    this.actuallySetBlock(position, blockState);
                 } catch (MaxChangedBlocksException except) {
                     except.printStackTrace();
                 }
             }
 
+            /*
+            System.out.println("done placing blocks, applying layerBrush ...");
+            LayerBrush.pause(1000);
+            System.out.println("... now");
+            AbstractBrush.layerBrush.perform(snipe, action, editSession, targetBlock, lastBlock);
+            System.out.println("DONE!");
+            */
+        }
+        if (useAutoLayer) {
+            // apply the LayerBrush (which "sees" the blocks already placed with editSession.setBlock() via the setBlockBuffer, see getBlock()):
+            snipe.getToolkitProperties().setBrushSize(snipe.getToolkitProperties().getBrushSize() + 1); // increase brush size so the "edges" of the affected area get treaated too
+            this.layerBrush.perform(snipe, action, editSession, targetBlock, lastBlock);
+            snipe.getToolkitProperties().setBrushSize(snipe.getToolkitProperties().getBrushSize() - 1); // restore brush size
+
+            // free the buffer:
+            this.layerBrush.setBlockBuffer = null;
         }
     }
 
@@ -1240,7 +1274,7 @@ public abstract class AbstractBrush implements Brush {
             addBlockToList(position,blockName);
         }
         else {
-            editSession.setBlock(position, pattern);
+            actuallySetBlock(position, pattern);
         }
     }
 
@@ -1251,10 +1285,10 @@ public abstract class AbstractBrush implements Brush {
     public void setBlock(int x, int y, int z, BaseBlock block) throws MaxChangedBlocksException {
         if (useSmallBlocks){
             String blockName = block.getBlockType().getId(); // extract block Type from BaseBlock object
-            addBlockToList(BlockVector3.at(x, y, z),blockName);
+            addBlockToList(BlockVector3.at(x, y, z), blockName);
         }
         else {
-            this.editSession.setBlock(BlockVector3.at(x, y, z), block);
+            actuallySetBlock(BlockVector3.at(x, y, z), block);
         }
     }
 
@@ -1270,6 +1304,19 @@ public abstract class AbstractBrush implements Brush {
 
     public void setBlockData(int x, int y, int z, BlockState blockState) throws MaxChangedBlocksException {
         setBlockData(BlockVector3.at(x, y, z),blockState);
+    }
+
+    private void actuallySetBlock(BlockVector3 position, Pattern block) throws MaxChangedBlocksException {
+        this.editSession.setBlock(position, block);
+        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.applyBlock(position).toImmutableState());}
+    }
+    private void actuallySetBlock(BlockVector3 position, BaseBlock block) throws MaxChangedBlocksException {
+        this.editSession.setBlock(position, block);
+        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.toImmutableState());}
+    }
+    private void actuallySetBlock(BlockVector3 position, BlockState block) throws MaxChangedBlocksException {
+        this.editSession.setBlock(position, block);
+        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block);}
     }
 
     public BaseBlock getFullBlock(BlockVector3 position) {
@@ -1358,6 +1405,10 @@ public abstract class AbstractBrush implements Brush {
 
     public void setCanUseSmallBlocks(boolean canUseSmallBlocks) {
         this.canUseSmallBlocks = canUseSmallBlocks;
+    }
+
+    public void setCanUseAutoLayer(boolean canUseAutoLayer) {
+        this.canUseAutoLayer = canUseAutoLayer;
     }
 
     @Override

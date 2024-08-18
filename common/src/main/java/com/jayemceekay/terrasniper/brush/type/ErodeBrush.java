@@ -262,6 +262,12 @@ public class ErodeBrush extends AbstractBrush {
 
     }
 
+    public List<String> handleCompletions(String[] parameters, Snipe snipe) {
+        return parameters.length > 0 ?
+                SuggestionHelper.limitByPrefix(IS_ADDITIVE.keySet().stream(), parameters[parameters.length - 1]) :
+                SuggestionHelper.limitByPrefix(IS_ADDITIVE.keySet().stream(), "");
+    }
+
     public void sendInfo(Snipe snipe) {
         SnipeMessenger messenger = snipe.createMessenger();
         messenger.sendBrushNameMessage();

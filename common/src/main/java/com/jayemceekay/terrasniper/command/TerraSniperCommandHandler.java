@@ -547,6 +547,19 @@ public class TerraSniperCommandHandler {
                     }
                     return 0;
                 }))
+                .then(Commands.literal("autolayer").executes((context) -> {
+                    Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
+                    Messenger messenger = new Messenger(sniper.getPlayer());
+                    if (sniper.autoLayerEnabled()) {
+                        sniper.setAutoLayerEnabled(false);
+                        messenger.sendMessage(ChatFormatting.RED + "AutoLayer mode is now disabled.");
+                    } else if (!sniper.autoLayerEnabled()) {
+                        sniper.setAutoLayerEnabled(true);
+                        messenger.sendMessage(ChatFormatting.GREEN + "AutoLayer mode is now enabled.");
+                        messenger.sendMessage(ChatFormatting.DARK_RED + "WARNING: EXPERIMENTAL, many brushes will not work properly! (turn off with /ts autolayer)");
+                    }
+                    return 0;
+                }))
                 .then(Commands.literal("range").then(Commands.argument("rangeValue", StringArgumentType.string()).executes((context) -> {
                     Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
                     Messenger messenger = new Messenger(sniper.getPlayer());

@@ -26,6 +26,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class Sniper {
     private final Player player;
     private boolean enabled = false;
     public boolean useSmallBlocks = false;
+    public boolean autoLayer = false;
 
     public Sniper(Player player) {
         this.player = player;
@@ -129,19 +131,25 @@ public class Sniper {
                 BlockVector3 rayTraceTargetBlock = null;
                 BlockVector3 rayTraceLastBlock = null;
                 BlockVector3 targetBlock;
+                clickedBlock = null; // ignore this block, use ray-tracing:
                 if (clickedBlock == null) {
-                    targetBlock = PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos());
+                    targetBlock = PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getBlockPos());
                     if (targetBlock != null) {
                         rayTraceTargetBlock = targetBlock;
                     }
                 }
-                Direction direction = player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale(128)), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getDirection();
-                BlockVector3 lastRayTraceResult = PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos().offset(direction.getNormal()));
+                Direction direction = player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale(128)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getDirection();
+                BlockVector3 lastRayTraceResult = PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getBlockPos().offset(direction.getNormal()));
                 if (lastRayTraceResult != null) {
                     rayTraceLastBlock = lastRayTraceResult;
                 }
 
                 targetBlock = clickedBlock == null ? rayTraceTargetBlock : clickedBlock;
+                //System.out.println("clickedBlock: " + clickedBlock);
+                //System.out.println("targetBlock: " + targetBlock);
+                //System.out.println("Ray-Tracing (COLLIDER): " + PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getBlockPos()));
+                //System.out.println("Ray-Tracing (VISUAL):   " + PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, player)).getBlockPos()));
+                //System.out.println("Ray-Tracing (OUTLINE):  " + PlatformAdapter.adapt(player.level().clip(new ClipContext(player.getEyePosition(1.0F), player.getEyePosition(1.0F).add(player.getLookAngle().scale((double) this.getCurrentToolkit().getProperties().getBlockTracerRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).getBlockPos()));
                 if (action != null) {
                     if (targetBlock.getY() < editSession.getWorld().getMinY() && Materials.isEmpty(editSession.getBlock(BlockVector3.at(targetBlock.getX(), targetBlock.getY(), targetBlock.getZ())).getBlockType())) {
                         player.sendSystemMessage(Component.literal(TextColor.fromLegacyFormat(ChatFormatting.RED) + "Snipe target block must be visible."));
@@ -205,6 +213,14 @@ public class Sniper {
 
     public void setSmallBlocksEnabled(boolean enabled) {
         this.useSmallBlocks = enabled;
+    }
+
+    public boolean autoLayerEnabled() {
+        return this.autoLayer;
+    }
+
+    public void setAutoLayerEnabled(boolean enabled) {
+        this.autoLayer = enabled;
     }
 
     public List<Toolkit> getToolkits() {
