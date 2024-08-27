@@ -13,6 +13,7 @@ import com.jayemceekay.terrasniper.util.PlatformAdapter;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.registry.state.*;
@@ -22,11 +23,14 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
+import it.unimi.dsi.fastutil.objects.ObjectLists;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
 
@@ -39,6 +43,9 @@ import java.util.stream.Stream;
 public abstract class AbstractBrush implements Brush {
     protected boolean useSmallBlocks = false;
     private boolean canUseSmallBlocks = true;
+    protected boolean keepPlants = true;
+    protected PlantMap plantMap = null;
+    protected Map<BlockVector3,BlockState> setBlockBuffer = null;
     protected boolean useAutoLayer = false;
     private boolean canUseAutoLayer = true;
     private LayerBrush layerBrush = null;
@@ -51,7 +58,7 @@ public abstract class AbstractBrush implements Brush {
     private BlockVector3 targetBlock;
     private BlockVector3 lastBlock;
     protected Map<BlockVector3, String[]> toDoList;
-    protected BlockVector3 offsetVector;
+    protected BlockVector3 offsetVector=null;
     private boolean additiveBrush = true; //whether the arrow action adds or removes blocks
     protected static final int LAYER_UP=1, LAYER_DOWN=2, LAYER_NORTH=3, LAYER_EAST=4, LAYER_SOUTH=5, LAYER_WEST=6;
 
@@ -231,6 +238,8 @@ public abstract class AbstractBrush implements Brush {
             "grass_and_sand"
     ));
 
+    private static final Set<String> HAS_NO_VERTICAL_CORNER_SLAB = new HashSet<>();
+
     // block name conversions:
     // values: materials from Conquest where the full-block variant is a vanilla block (e.g. "limestone_quarter_slab"):
     // keys:   corresponding vanilla name (e.g. "stone")
@@ -239,12 +248,25 @@ public abstract class AbstractBrush implements Brush {
     // inverse map:
     private static final Map<String, String> CONQUEST_TO_VANILLA_MATERIAL = new HashMap<>();
 
+    private static final Set<String> PLANTS = new HashSet<>();
+
     // initialization of these maps:
     static {
-        for(Block vanillaBlock : BuiltInRegistries.BLOCK) {
+        for(Block currentBlock : BuiltInRegistries.BLOCK) {
             // Get the conquest family of variants of the vanilla block:
-            Family<Block> variantFamily = FamilyRegistry.BLOCKS.getFamily(vanillaBlock);
-            String currentId = BuiltInRegistries.BLOCK.getKey(vanillaBlock).toString();
+            Family<Block> variantFamily = FamilyRegistry.BLOCKS.getFamily(currentBlock);
+            String currentId = BuiltInRegistries.BLOCK.getKey(currentBlock).toString();
+
+            BlockState currentBlockState = BlockTypes.get(currentId).getDefaultState();
+            var properties = currentBlockState.getBlockType().getPropertyMap().keySet();
+            if (properties.contains("layers")) { // test if it is a plant (or rock-pile) where "plant":="block with 'layers' property but without collision box"
+                if (currentBlock.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty()) {
+                    if (!currentId.equals("minecraft:snow")) //standard snow layers also have no collision, but shouldn't count as "plant"
+                    {
+                    PLANTS.add(currentId);
+                    }
+                }
+            }
 
             String rootId = BuiltInRegistries.BLOCK.getKey(variantFamily.getRoot()).toString();
             if(!rootId.equals(currentId)) {continue;}
@@ -254,6 +276,7 @@ public abstract class AbstractBrush implements Brush {
             boolean foundConquestVariant = false;
             boolean foundMinecraftStairVariant = false;
             boolean usesLayerNotSlab = false;
+            boolean hasNoVerticalCornerSlab = true;
             String conquestName="";
             String stairVariantName="";
             for (Block variant : variantFamily.getMembers())
@@ -269,6 +292,9 @@ public abstract class AbstractBrush implements Brush {
                     if(variantId.endsWith("_layer")) {
                         usesLayerNotSlab = true;
                     }
+                    if(variantId.endsWith("_vertical_corner_slab")) {
+                        hasNoVerticalCornerSlab = false;
+                    }
                 }
                 else { if(variantId.startsWith("minecraft:") && variantId.endsWith("_stairs")) {
                     stairVariantName = variantId.substring(variantId.indexOf(":")+1);
@@ -280,7 +306,11 @@ public abstract class AbstractBrush implements Brush {
                 USES_LAYER_INSTEAD_OF_SLAB.add(rootId.substring(rootId.indexOf(":") + 1));
             }
 
-            if(!currentId.startsWith("minecraft:")) {continue;} // thus in the following tootId will be a vanilla block
+            if (hasNoVerticalCornerSlab) {
+                HAS_NO_VERTICAL_CORNER_SLAB.add(rootId.substring(rootId.indexOf(":") + 1));
+            }
+
+            if(!currentId.startsWith("minecraft:")) {continue;} // thus in the following rootId will be a vanilla block
 
             if (foundMinecraftStairVariant) {
                 VARIANTS_EXIST_IN_VANILLA.put(rootId.substring(rootId.indexOf(":") + 1), stairVariantName);
@@ -304,6 +334,7 @@ public abstract class AbstractBrush implements Brush {
                 }
             }
         }
+        System.out.println("REGISTERED "+PLANTS.size()+" PLANTS");
     }
 
     // some static methods for translation between sub-block lists and actual blocks:
@@ -749,10 +780,11 @@ public abstract class AbstractBrush implements Brush {
         // create the BlockState object representing the block to be placed:
         String blockName = material.substring(material.indexOf(":") + 1);
         boolean adds = (this.action == ToolAction.ARROW) == this.additiveBrush;
-        if(USES_LAYER_INSTEAD_OF_SLAB.contains(blockName) && blockVariant.equals("_vertical_corner_slab")) {
+        if(HAS_NO_VERTICAL_CORNER_SLAB.contains(blockName) && blockVariant.equals("_vertical_corner_slab")) {
             blockVariant = adds ? "_vertical_slab" : "_quarter_slab";
             upper = (binaryCrossSum(shape & 0b11001100)==1);
         }
+
         BlockState blockState = BlockTypes.get(fixConquestNames(material, blockVariant)).getDefaultState(); // fixConquestNames returns a valid block-ID like "conquest:limestone_vertical_corner" or "minecraft:stone_stairs"
 
         var properties = blockState.getBlockType().getPropertyMap();
@@ -946,7 +978,7 @@ public abstract class AbstractBrush implements Brush {
         }
         else {*/
             // 1) get block from edit session
-            BlockState block = this.editSession.getBlock(position);
+            BlockState block = this.actuallyGetBlock(position);
             if (block==null) {block = BlockTypes.AIR.getDefaultState();} // replace null by air block
             String blockId = block.getBlockType().getId();
 
@@ -1044,6 +1076,8 @@ public abstract class AbstractBrush implements Brush {
         this.action = action;
         this.useSmallBlocks = this.canUseSmallBlocks && snipe.getSniper().smallBlocksEnabled();
         this.useAutoLayer = this.canUseAutoLayer && snipe.getSniper().autoLayerEnabled();
+        this.keepPlants = snipe.getSniper().keepPlantsEnabled();
+
 
         if (useSmallBlocks) {
             setOffsetVector(snipe);
@@ -1058,6 +1092,11 @@ public abstract class AbstractBrush implements Brush {
         if (useAutoLayer) {
             if(this.layerBrush==null) {this.layerBrush = new LayerBrush();}
             this.layerBrush.setBlockBuffer = new HashMap<>();
+        }
+
+        if (keepPlants) {
+            if (this.setBlockBuffer==null) {this.setBlockBuffer = new HashMap<>();}
+            if (this.plantMap==null) {this.plantMap = new PlantMap(snipe,this);}
         }
 
         // perform the brush action
@@ -1133,7 +1172,7 @@ public abstract class AbstractBrush implements Brush {
                         if (blocks.containsKey(neighborPositions[i])) {
                             neighbors[i] = blocks.get(neighborPositions[i]).shape;
                         } else {
-                            BlockState blockState = this.editSession.getBlock(neighborPositions[i]);
+                            BlockState blockState = this.actuallyGetBlock(neighborPositions[i]);
                             if (blockState==null) {blockState = BlockTypes.AIR.getDefaultState();} // replace null by air block
                             String blockId = blockState.getBlockType().getId();
                             if (blockId.equals("minecraft:air") || blockId.equals("minecraft:cave_air") || blockId.equals("minecraft:void_air") || blockId.equals("minecraft:water") || blockId.equals("minecraft:lava")) {
@@ -1193,15 +1232,30 @@ public abstract class AbstractBrush implements Brush {
             System.out.println("DONE!");
             */
         }
+
         if (useAutoLayer) {
+            if (keepPlants) {
+                this.layerBrush.setBlockBuffer = this.setBlockBuffer;
+                this.layerBrush.plantMap = this.plantMap;
+            }
             // apply the LayerBrush (which "sees" the blocks already placed with editSession.setBlock() via the setBlockBuffer, see getBlock()):
             snipe.getToolkitProperties().setBrushSize(snipe.getToolkitProperties().getBrushSize() + 1); // increase brush size so the "edges" of the affected area get treaated too
             this.layerBrush.perform(snipe, action, editSession, targetBlock, lastBlock);
             snipe.getToolkitProperties().setBrushSize(snipe.getToolkitProperties().getBrushSize() - 1); // restore brush size
-
-            // free the buffer:
-            this.layerBrush.setBlockBuffer = null;
         }
+        else {
+            if (keepPlants) {
+                try {
+                    this.plantMap.placePlantsBack();
+                } catch (MaxChangedBlocksException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        this.setBlockBuffer = null;
+        this.plantMap = null;
+        this.offsetVector = null;
     }
 
     public int clampY(int y) {
@@ -1298,7 +1352,7 @@ public abstract class AbstractBrush implements Brush {
             addBlockToList(position,blockName);
         }
         else {
-            editSession.setBlock(position, blockState);
+            this.actuallySetBlock(position, blockState);
         }
     }
 
@@ -1307,18 +1361,39 @@ public abstract class AbstractBrush implements Brush {
     }
 
     private void actuallySetBlock(BlockVector3 position, Pattern block) throws MaxChangedBlocksException {
+        if (keepPlants) {this.plantMap.init(position);}
         this.editSession.setBlock(position, block);
-        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.applyBlock(position).toImmutableState());}
+        if(keepPlants) {this.setBlockBuffer.put(position, block.applyBlock(position).toImmutableState());}
+        else { if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.applyBlock(position).toImmutableState());} }
     }
     private void actuallySetBlock(BlockVector3 position, BaseBlock block) throws MaxChangedBlocksException {
+        if (keepPlants) {this.plantMap.init(position);}
         this.editSession.setBlock(position, block);
-        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.toImmutableState());}
+        if(keepPlants) {this.setBlockBuffer.put(position, block.toImmutableState());}
+        else { if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block.toImmutableState());} }
     }
     private void actuallySetBlock(BlockVector3 position, BlockState block) throws MaxChangedBlocksException {
+        if (keepPlants) {this.plantMap.init(position);}
         this.editSession.setBlock(position, block);
-        if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block);}
+        if(keepPlants) {this.setBlockBuffer.put(position, block);}
+        else { if(useAutoLayer) {this.layerBrush.setBlockBuffer.put(position, block);} }
     }
 
+    public BlockState actuallyGetBlock(BlockVector3 position) {
+        BlockState block = this.editSession.getBlock(position);
+     //   if (keepPlants) {
+            BlockType blockType = block.getBlockType();
+            if (PLANTS.contains(blockType.getId())) { // treat "plant" blocks as AIR (or WATER if it is waterlogged)
+                var properties = blockType.getPropertyMap();
+                boolean waterlogged=false;
+                if (properties.containsKey("waterlogged")) {waterlogged = (boolean) block.getState(properties.get("waterlogged"));}
+                return waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState();
+            }
+      //  }
+        return block;
+    }
+
+    /*
     public BaseBlock getFullBlock(BlockVector3 position) {
         int x = position.getX();
         int y = position.getY();
@@ -1329,35 +1404,32 @@ public abstract class AbstractBrush implements Brush {
     public BaseBlock getFullBlock(int x, int y, int z) {
         return this.editSession.getFullBlock(BlockVector3.at(x, y, z));
     }
+    */
 
-    public BlockState getBlock(int x, int y, int z) {
-        BlockVector3 position = BlockVector3.at(x, y, z);
+    public BlockState getBlock(BlockVector3 position) {
+
         if (useSmallBlocks) {
             // return the sub-block at half coordinates instead
             BlockVector3 halfPosition = divBy2(position);  // halfed coordinate relative to the target block
             return (BlockTypes.get(getSubBlock(halfPosition, mod2(position)))).getDefaultState();
         }
         else{
-            return this.editSession.getBlock(position);
+            return this.actuallyGetBlock(position);
         }
     }
 
-    public BlockState getBlock(BlockVector3 position) {
-        int x = position.getX();
-        int y = position.getY();
-        int z = position.getZ();
-        return this.getBlock(x, y, z);
-    }
-
-    public BlockType getBlockType(BlockVector3 position) {
-        int x = position.getX();
-        int y = position.getY();
-        int z = position.getZ();
-        return this.getBlockType(x, y, z);
+    public BlockState getBlock(int x, int y, int z) {
+        BlockVector3 position = BlockVector3.at(x, y, z);
+        return this.getBlock(position);
     }
 
     public BlockType getBlockType(int x, int y, int z) {
-        BlockState block = this.getBlock(x, y, z);
+        BlockVector3 position = BlockVector3.at(x,y,z);
+        return this.getBlockType(position);
+    }
+
+    public BlockType getBlockType(BlockVector3 position) {
+        BlockState block = this.getBlock(position);
         return block.getBlockType();
     }
 
@@ -1424,6 +1496,173 @@ public abstract class AbstractBrush implements Brush {
             this.material = material;
             this.shape = shape;
             this.waterlogged = waterlogged;
+        }
+    }
+
+    class PlantMap {
+        private Map<BlockVector2,List<String>> plantStacks;
+        private int xmin,xmax,ymin,ymax,zmin,zmax;
+        private EditSession editSession;
+        private Map<BlockVector3,BlockState> setBlockBuffer;
+
+        PlantMap(Snipe snipe, AbstractBrush brushReference) {
+            int brushSize = snipe.getToolkitProperties().getBrushSize() + 1;
+            this.xmin = brushReference.targetBlock.getX()-brushSize;
+            this.xmax = brushReference.targetBlock.getX()+brushSize;
+            this.ymin = brushReference.targetBlock.getY()-brushSize;
+            this.ymax = brushReference.targetBlock.getY()+brushSize;
+            this.zmin = brushReference.targetBlock.getZ()-brushSize;
+            this.zmax = brushReference.targetBlock.getZ()+brushSize;
+            this.editSession = brushReference.editSession;
+            this.setBlockBuffer= brushReference.setBlockBuffer;
+            this.plantStacks = new HashMap<>();
+        }
+
+        public void init(BlockVector3 editedPos) throws MaxChangedBlocksException { // if at 'editedPos' or one block above is a plant ==> search up and down for adjacent plant blocks
+            BlockVector2 pos = editedPos.toBlockVector2();
+            if (!plantStacks.containsKey(pos)) {
+                int y = editedPos.getY();
+                List<String> plantStack = new ArrayList<>();
+
+
+
+                BlockVector3 position = pos.toBlockVector3(y);
+                BlockState block = this.editSession.getBlock(position);
+                var properties = block.getBlockType().getPropertyMap();
+                String blockId = block.getBlockType().getId();
+                boolean waterlogged = false;
+                if (PLANTS.contains(blockId)) {
+                    if(properties.containsKey("waterlogged")) {
+                        if (block.getState((BooleanProperty) properties.get("waterlogged"))) {waterlogged = true;}}
+                    this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                    this.setBlockBuffer.put(  position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                    plantStack.add(blockId);
+                }
+                else {
+                    position = pos.toBlockVector3(++y);
+                    block = this.editSession.getBlock(position);
+                    properties = block.getBlockType().getPropertyMap();
+                    blockId = block.getBlockType().getId();
+                    waterlogged = false;
+                    if (PLANTS.contains(blockId)) {
+                        if(properties.containsKey("waterlogged")) {
+                            if (block.getState((BooleanProperty) properties.get("waterlogged"))) {waterlogged = true;}}
+                        this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        this.setBlockBuffer.put(  position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        plantStack.add(blockId);
+                    }
+                    else {
+                        return; // no plant at y or the block above ==> abort
+                    }
+                }
+
+                for (int dy=1; ;dy++) {
+                    position = pos.toBlockVector3(y+dy);
+                    block = this.editSession.getBlock(position);
+                    properties = block.getBlockType().getPropertyMap();
+                    blockId = block.getBlockType().getId();
+                    waterlogged = false;
+                    if (PLANTS.contains(blockId)) {
+                        if(properties.containsKey("waterlogged")) {
+                            if (block.getState((BooleanProperty) properties.get("waterlogged"))) {waterlogged = true;}}
+                        this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        this.setBlockBuffer.put(  position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        plantStack.add(blockId);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                for (int dy=-1; ;dy--) {
+                    position = pos.toBlockVector3(y+dy);
+                    block = this.editSession.getBlock(position);
+                    properties = block.getBlockType().getPropertyMap();
+                    blockId = block.getBlockType().getId();
+                    waterlogged = false;
+                    if (PLANTS.contains(blockId)) {
+                        if(properties.containsKey("waterlogged")) {
+                            if (block.getState((BooleanProperty) properties.get("waterlogged"))) {waterlogged = true;}}
+                        this.editSession.setBlock(position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        this.setBlockBuffer.put(  position, waterlogged ? BlockTypes.WATER.getDefaultState() : BlockTypes.AIR.getDefaultState());
+                        plantStack.add(0,blockId);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                plantStacks.put(pos,plantStack);
+            }
+        }
+
+        public void placePlantsBack() throws MaxChangedBlocksException {
+            for (Map.Entry<BlockVector2,List<String>> entry : this.plantStacks.entrySet()) {
+                BlockVector2 pos = entry.getKey();
+                List<String> plantStack = entry.getValue();
+
+                List<Boolean> waterlogged = new ArrayList<>();
+                for (int y=ymax+plantStack.size(); y>=ymin; y--) {
+                    BlockVector3 position = pos.toBlockVector3(y);
+                    BlockState block;
+                    if (this.setBlockBuffer.containsKey(position)) {
+                        block = this.setBlockBuffer.get(position);
+                    }
+                    else {
+                        block = this.editSession.getBlock(position);
+                    }
+                    String blockId  = block.getBlockType().getId();
+                    //System.out.println("        blockId="+blockId);
+                    if (blockId.equals("minecraft:air") || blockId.equals("minecraft:void_air") || blockId.equals("minecraft:cave_air")) {
+                        waterlogged.add(0,false);
+                    }
+                    else { if (blockId.equals("minecraft:water")) {
+                        waterlogged.add(0,true);
+                    }
+                    else {
+                        // set plants (beginning at y+1):
+                        // 1) determine "layers" property on the plant to match block below (at y)!
+                        var properties = block.getBlockType().getPropertyMap();
+                        int ind = separatorIndex(blockId);
+                        String material = ind == -1 ? fixConquestNames(blockId, "") : fixConquestNames(blockId.substring(0, ind), "");
+                        String blockVariant = ind == -1 ? "" : blockId.substring(ind + 1);
+                        int shape = blockShape(material, blockVariant, block, position, false);
+                        int upper = binaryCrossSum(shape & 0b11001100);
+                        int lower = binaryCrossSum(shape & 0b00110011);
+                        int height = (shape % (1 << 11)) >> 8;
+                        if (height == 0) {
+                            if (properties.containsKey("layer")) {
+                                height = block.getState((IntegerProperty) properties.get("layer"));
+                            }
+                        }
+                        int layers = switch (blockVariant) {
+                        case "layer"            -> height;
+                        case "slab"             -> height;
+                        case "vertical_slab"    -> height<=4 ? 1 : 8;
+                        case "vertical_corner"  -> height<=2 ? 1 : 8;
+                        case "quarter"          -> height<=2 ? 1 : 6;
+                        case "vertical_quarter" -> height<=3 ? 1 : 8;
+                        default                 -> upper>=3 ? 8 : (lower>=3 ? 4 : 1);
+                        };
+
+                        // 2) set the plants
+                        for (int i=0; i<plantStack.size() && i<waterlogged.size(); i++) {
+                            String plantId = plantStack.get(i);
+                            //System.out.println("   y:           "+(y+i+1));
+                            //System.out.println("   plantId:     "+plantId);
+                            //System.out.println("   waterlogged: "+waterlogged.get(i));
+                            BlockState plantBlock = BlockTypes.get(plantId).getDefaultState();
+                            properties = plantBlock.getBlockType().getPropertyMap();
+                            if(waterlogged.get(i) && properties.containsKey("waterlogged")) {
+                                plantBlock = plantBlock.with((BooleanProperty) properties.get("waterlogged"), true);
+                            }
+                            // adjust the layers property to match the block below:
+                            plantBlock = plantBlock.with((IntegerProperty) properties.get("layers"), layers);
+
+                            this.editSession.setBlock(pos.toBlockVector3(y+i+1), plantBlock);
+                        }
+                        break;
+                    }}
+                }
+            }
         }
     }
 }

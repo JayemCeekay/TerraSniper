@@ -54,7 +54,7 @@ public class DrainBrush extends AbstractBrush {
 
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snip) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
             return SuggestionHelper.limitByPrefix(Stream.of("true", "false", "d"), parameter);

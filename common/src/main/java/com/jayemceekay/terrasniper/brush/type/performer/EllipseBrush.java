@@ -30,7 +30,7 @@ public class EllipseBrush extends AbstractPerformerBrush {
     private int stepsMin;
     private int stepsMax;
     private int xscl;
-    private int yscl;
+    private int zscl;
     private int steps;
 
     public EllipseBrush() {
@@ -42,9 +42,13 @@ public class EllipseBrush extends AbstractPerformerBrush {
         this.stepsMin = 1;
         this.stepsMax = 2000;
         this.xscl = 10;
-        this.yscl = 10;
+        this.zscl = 10;
         this.steps = 200;
     }
+
+
+
+
 
     public void handleCommand(String[] parameters, Snipe snipe) {
         SnipeMessenger messenger = snipe.createMessenger();
@@ -55,7 +59,7 @@ public class EllipseBrush extends AbstractPerformerBrush {
                 messenger.sendMessage(ChatFormatting.GOLD + "Ellipse Brush Parameters:");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b el fill -- Toggles fill mode. Default is false.");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b el x[n] -- Sets X size modifier to n.");
-                messenger.sendMessage(ChatFormatting.AQUA + "/b el y[n] -- Sets Y size modifier to n.");
+                messenger.sendMessage(ChatFormatting.AQUA + "/b el z[n] -- Sets Z size modifier to n.");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b el t[n] -- Sets the amount of time steps.");
                 return;
             }
@@ -78,11 +82,11 @@ public class EllipseBrush extends AbstractPerformerBrush {
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
-                } else if (parameter.equalsIgnoreCase("y[")) {
-                    steps = NumericParser.parseInteger(parameter.replace("y[", "").replace("]", ""));
+                } else if (parameter.startsWith("z[")) {
+                    steps = NumericParser.parseInteger(parameter.replace("z[", "").replace("]", ""));
                     if (steps != null && steps >= this.sclMin && steps <= this.sclMax) {
-                        this.yscl = steps;
-                        messenger.sendMessage(ChatFormatting.AQUA + "Y-scale modifier set to: " + this.yscl);
+                        this.zscl = steps;
+                        messenger.sendMessage(ChatFormatting.AQUA + "Z-scale modifier set to: " + this.zscl);
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
@@ -106,17 +110,17 @@ public class EllipseBrush extends AbstractPerformerBrush {
     public HashMap<String, String> getSettings() {
         this.settings.put("Fill", Boolean.toString(this.fill));
         this.settings.put("X-Scale", Integer.toString(this.xscl));
-        this.settings.put("Y-Scale", Integer.toString(this.yscl));
+        this.settings.put("Z-Scale", Integer.toString(this.zscl));
         this.settings.put("Steps", Integer.toString(this.steps));
         return super.getSettings();
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snipe) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
-            return SuggestionHelper.limitByPrefix(Stream.of("fill", "x[", "y[", "t["), parameter);
+            return SuggestionHelper.limitByPrefix(Stream.of("fill", "x[", "z[", "t["), parameter);
         } else {
-            return SuggestionHelper.limitByPrefix(Stream.of("fill", "x[", "y[", "t["), "");
+            return SuggestionHelper.limitByPrefix(Stream.of("fill", "x[", "z[", "t["), "");
         }
     }
 
@@ -152,7 +156,7 @@ public class EllipseBrush extends AbstractPerformerBrush {
         try {
             for (double steps = 0; (steps <= TWO_PI); steps += this.stepSize) {
                 int x = (int) Math.round(this.xscl * Math.cos(steps));
-                int y = (int) Math.round(this.yscl * Math.sin(steps));
+                int y = (int) Math.round(this.zscl * Math.sin(steps));
                 BlockVector3 lastBlock = getLastBlock();
                 Direction face = getDirection(getTargetBlock(), lastBlock);
                 if (face != null) {
@@ -204,14 +208,14 @@ public class EllipseBrush extends AbstractPerformerBrush {
     private void ellipseFill(Snipe snipe, BlockVector3 targetBlock) throws MaxChangedBlocksException {
         EditSession editSession = getEditSession();
         int ix = this.xscl;
-        int iy = this.yscl;
+        int iy = this.zscl;
         int blockX = targetBlock.getX();
         int blockY = targetBlock.getY();
         int blockZ = targetBlock.getZ();
         this.performer.perform(editSession, blockX, blockY, blockZ, getBlock(blockX, blockY, blockZ));
         try {
             if (ix >= iy) { // Need this unless you want weird holes
-                for (iy = this.yscl; iy >= editSession.getMinimumPoint().getY(); iy--) {
+                for (iy = this.zscl; iy >= editSession.getMinimumPoint().getY(); iy--) {
                     for (double steps = 0; (steps <= TWO_PI); steps += this.stepSize) {
                         int x = (int) Math.round(ix * Math.cos(steps));
                         int y = (int) Math.round(iy * Math.sin(steps));
@@ -320,8 +324,8 @@ public class EllipseBrush extends AbstractPerformerBrush {
             this.xscl = 10;
         }
 
-        if (this.yscl < this.sclMin || this.yscl > this.sclMax) {
-            this.yscl = 10;
+        if (this.zscl < this.sclMin || this.zscl > this.sclMax) {
+            this.zscl = 10;
         }
 
         if (this.steps < this.stepsMin || this.steps > this.stepsMax) {
@@ -329,6 +333,6 @@ public class EllipseBrush extends AbstractPerformerBrush {
         }
 
         SnipeMessageSender messageSender = snipe.createMessageSender();
-        messageSender.brushNameMessage().message(ChatFormatting.AQUA + "X-size set to: " + ChatFormatting.DARK_AQUA + this.xscl).message(ChatFormatting.AQUA + "Y-size set to: " + ChatFormatting.DARK_AQUA + this.yscl).message(ChatFormatting.AQUA + "Render step number set to: " + ChatFormatting.DARK_AQUA + this.steps).message(ChatFormatting.AQUA + "Fill mode is " + (this.fill ? "enabled" : "disabled")).send();
+        messageSender.brushNameMessage().message(ChatFormatting.AQUA + "X-size set to: " + ChatFormatting.DARK_AQUA + this.xscl).message(ChatFormatting.AQUA + "Z-size set to: " + ChatFormatting.DARK_AQUA + this.zscl).message(ChatFormatting.AQUA + "Render step number set to: " + ChatFormatting.DARK_AQUA + this.steps).message(ChatFormatting.AQUA + "Fill mode is " + (this.fill ? "enabled" : "disabled")).send();
     }
 }

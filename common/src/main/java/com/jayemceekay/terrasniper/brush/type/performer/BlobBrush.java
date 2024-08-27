@@ -56,7 +56,7 @@ public class BlobBrush extends AbstractPerformerBrush {
         return super.getSettings();
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snip) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
             return SuggestionHelper.limitByPrefix(Stream.of("g["), parameter);

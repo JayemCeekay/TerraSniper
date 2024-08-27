@@ -2,6 +2,7 @@ package com.jayemceekay.terrasniper.brush.type.performer;
 
 import com.jayemceekay.terrasniper.sniper.snipe.Snipe;
 import com.jayemceekay.terrasniper.sniper.snipe.message.SnipeMessenger;
+import com.jayemceekay.terrasniper.util.painter.Painters;
 import com.jayemceekay.terrasniper.util.text.NumericParser;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -20,6 +21,8 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
     private double xRad = 0.0D;
     private double yRad = 0.0D;
     private double zRad = 0.0D;
+    private boolean centerBlock=false;
+    private String shape="full";
 
     public EllipsoidBrush() {
     }
@@ -35,6 +38,8 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
                 messenger.sendMessage(ChatFormatting.AQUA + "/b elo x [n] -- Sets X radius to n.");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b elo y [n] -- Sets Y radius to n.");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b elo z [n] -- Sets Z radius to n.");
+                messenger.sendMessage(ChatFormatting.DARK_GREEN + "/b elo center -- Toggles whether the brush will center on a block or the corner of a block in smallBlocks mode");
+                messenger.sendMessage(ChatFormatting.GREEN + "/b elo up/down/north/east/south/west/full -- changes shape to a half-ball facing the specified direction, 'full' changes back to a full ball");
                 return;
             }
 
@@ -70,8 +75,45 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
-                } else {
-                    messenger.sendMessage(ChatFormatting.RED + "Invalid brush parameters! Use the \"info\" parameter to display parameter info.");
+                } else { if (parameter.equalsIgnoreCase("center")) {
+                    if (!this.centerBlock) {
+                        this.centerBlock = true;
+                        messenger.sendMessage(ChatFormatting.AQUA + "centerBlock ON. The brush will now be centered on a block in smallBlocks mode.");
+                    } else {
+                        this.centerBlock = false;
+                        messenger.sendMessage(ChatFormatting.AQUA + "centerBlock OFF. The brush will now be centered on the corner of a block in smallBlocks mode.");
+                    }
+                    } else { if (parameter.equalsIgnoreCase("full")) {
+                        this.shape = "full";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a FULL ball.");
+                    } else { if (parameter.equalsIgnoreCase("up")) {
+                        this.shape = "up";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing UP.");
+                    } else { if (parameter.equalsIgnoreCase("down")) {
+                        this.shape = "down";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing DOWN.");
+                    } else { if (parameter.equalsIgnoreCase("north")) {
+                        this.shape = "north";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing NORTH.");
+                    } else { if (parameter.equalsIgnoreCase("east")) {
+                        this.shape = "east";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing EAST.");
+                    } else { if (parameter.equalsIgnoreCase("south")) {
+                        this.shape = "south";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing SOUTH.");
+                    } else { if (parameter.equalsIgnoreCase("west")) {
+                        this.shape = "west";
+                        messenger.sendMessage(ChatFormatting.AQUA + "changed back to a half-ball facing WEST.");
+                    } else {
+                        messenger.sendMessage(ChatFormatting.RED + "Invalid brush parameters! Use the \"info\" parameter to display parameter info.");
+                    }
+                    }
+                    }
+                    }
+                    }
+                    }
+                    }
+                    }
                 }
             }
         }
@@ -87,12 +129,12 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
         return super.getSettings();
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snip) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
-            return SuggestionHelper.limitByPrefix(Stream.of("true", "false", "x[", "y[", "z["), parameter);
+            return SuggestionHelper.limitByPrefix(Stream.of("center", "full", "up", "down", "north", "east", "south", "west", "true", "false", "x[", "y[", "z["), parameter);
         } else {
-            return SuggestionHelper.limitByPrefix(Stream.of("true", "false", "x[", "y[", "z["), "");
+            return SuggestionHelper.limitByPrefix(Stream.of("center", "full", "up", "down", "north", "east", "south", "west", "true", "false", "x[", "y[", "z["), "");
         }
     }
 
@@ -119,34 +161,91 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
     }
 
     private void execute(BlockVector3 targetBlock) throws MaxChangedBlocksException {
-        int blockX = targetBlock.getX();
-        int blockY = targetBlock.getY();
-        int blockZ = targetBlock.getZ();
+        int xDirection = 0;
+        int yDirection = 0;
+        int zDirection = 0;
+        switch (this.shape) {
+            case "up":
+                yDirection = 1;
+                break;
+            case "down":
+                yDirection = -1;
+                break;
+            case "east":
+                xDirection = 1;
+                break;
+            case "west":
+                xDirection = -1;
+                break;
+            case "south":
+                zDirection = 1;
+                break;
+            case "north":
+                zDirection = -1;
+                break;
+        }
+        int sizeOffset = (useSmallBlocks && centerBlock) ? 1 : 0;
+        double coordOffset = (useSmallBlocks && centerBlock) ? 1.0D/2.0D : 0.0D;
+        int xOffset = (useSmallBlocks && centerBlock) ? 2 * (this.offsetVector.getX() - this.getTargetBlock().getX()) - 1 : 0;
+        int yOffset = (useSmallBlocks && centerBlock) ? 2 * (this.offsetVector.getY() - this.getTargetBlock().getY()) - 1 : 0;
+        int zOffset = (useSmallBlocks && centerBlock) ? 2 * (this.offsetVector.getZ() - this.getTargetBlock().getZ()) - 1 : 0;
+
+        int blockX = (useSmallBlocks && centerBlock) ? targetBlock.getX()*2-this.offsetVector.getX() : targetBlock.getX();
+        int blockY = (useSmallBlocks && centerBlock) ? targetBlock.getY()*2-this.offsetVector.getY() : targetBlock.getY();
+        int blockZ = (useSmallBlocks && centerBlock) ? targetBlock.getZ()*2-this.offsetVector.getZ() : targetBlock.getZ();
+
         this.performer.perform(this.getEditSession(), blockX, blockY, blockZ, this.getBlock(blockX, blockY, blockZ));
         double trueOffset = this.offset ? 0.5D : 0.0D;
 
-        for (double x = 0.0D; x <= this.xRad; ++x) {
-            double xSquared = x / (this.xRad + trueOffset) * (x / (this.xRad + trueOffset));
+        for (int x = 0; x <= this.xRad + sizeOffset; ++x) {
+            double xSquared = (x - coordOffset) / (this.xRad + trueOffset + coordOffset) * ((x - coordOffset) / (this.xRad + trueOffset + coordOffset));
 
-            for (double z = 0.0D; z <= this.zRad; ++z) {
-                double zSquared = z / (this.zRad + trueOffset) * (z / (this.zRad + trueOffset));
+            for (int z = 0; z <= this.zRad + sizeOffset; ++z) {
+                double zSquared = (z - coordOffset) / (this.zRad + trueOffset + coordOffset) * ((z - coordOffset) / (this.zRad + trueOffset + coordOffset));
 
-                for (double y = 0.0D; y <= this.yRad; ++y) {
-                    double ySquared = y / (this.yRad + trueOffset) * (y / (this.yRad + trueOffset));
+                for (int y = 0; y <= this.yRad + sizeOffset; ++y) {
+                    double ySquared = (y - coordOffset) / (this.yRad + trueOffset + coordOffset) * ((y - coordOffset) / (this.yRad + trueOffset + coordOffset));
                     if (xSquared + ySquared + zSquared <= 1.0D) {
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY + y), (int) ((double) blockZ + z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ - z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY + y), (int) ((double) blockZ - z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY - y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY - y), (int) ((double) blockZ + z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY - y)), (int) ((double) blockZ - z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY - y), (int) ((double) blockZ - z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX - x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX - x), (int) ((double) blockY + y), (int) ((double) blockZ + z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX - x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ - z), this.clampY((int) ((double) blockX - x), (int) ((double) blockY + y), (int) ((double) blockZ - z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX - x), this.clampY((int) ((double) blockY - y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX - x), (int) ((double) blockY - y), (int) ((double) blockZ + z)));
-                        this.performer.perform(this.getEditSession(), (int) ((double) blockX - x), this.clampY((int) ((double) blockY - y)), (int) ((double) blockZ - z), this.clampY((int) ((double) blockX - x), (int) ((double) blockY - y), (int) ((double) blockZ - z)));
+                        if (xDirection >= 0 || x==1) {
+                            if (yDirection >= 0 || y==1) {
+                                if (zDirection >= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY + y), (int) ((double) blockZ + z)));
+                                }
+                                if (zDirection <= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ - z + sizeOffset), this.clampY((int) ((double) blockX + x), (int) ((double) blockY + y), (int) ((double) blockZ - z + sizeOffset)));
+                                }
+                            }
+                            if (yDirection <= 0 || y==1) {
+                                if (zDirection >= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY - y + sizeOffset)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX + x), (int) ((double) blockY - y + sizeOffset), (int) ((double) blockZ + z)));
+                                }
+                                if (zDirection <= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX + x), this.clampY((int) ((double) blockY - y + sizeOffset)), (int) ((double) blockZ - z + sizeOffset), this.clampY((int) ((double) blockX + x), (int) ((double) blockY - y + sizeOffset), (int) ((double) blockZ - z + sizeOffset)));
+                                }
+                            }
+                        }
+                        if (xDirection <= 0 || x==1) {
+                            if (yDirection >= 0 || y==1) {
+                                if (zDirection >= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX - x + sizeOffset), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX - x + sizeOffset), (int) ((double) blockY + y), (int) ((double) blockZ + z)));
+                                }
+                                if (zDirection <= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX - x + sizeOffset), this.clampY((int) ((double) blockY + y)), (int) ((double) blockZ - z + sizeOffset), this.clampY((int) ((double) blockX - x + sizeOffset), (int) ((double) blockY + y), (int) ((double) blockZ - z + sizeOffset)));
+                                }
+                            }
+                            if (yDirection <= 0 || y==1) {
+                                if (zDirection >= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX - x + sizeOffset), this.clampY((int) ((double) blockY - y + sizeOffset)), (int) ((double) blockZ + z), this.clampY((int) ((double) blockX - x + sizeOffset), (int) ((double) blockY - y + sizeOffset), (int) ((double) blockZ + z)));
+                                }
+                                if (zDirection <= 0 || z==1) {
+                                    this.performer.perform(this.getEditSession(), (int) ((double) blockX - x + sizeOffset), this.clampY((int) ((double) blockY - y + sizeOffset)), (int) ((double) blockZ - z + sizeOffset), this.clampY((int) ((double) blockX - x + sizeOffset), (int) ((double) blockY - y + sizeOffset), (int) ((double) blockZ - z + sizeOffset)));
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-
     }
 
     public void sendInfo(Snipe snipe) {

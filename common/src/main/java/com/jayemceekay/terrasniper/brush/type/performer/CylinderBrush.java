@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 public class CylinderBrush extends AbstractPerformerBrush {
     private double trueCircle;
+    private boolean centerBlock=false;
 
     public CylinderBrush() {
     }
@@ -33,6 +34,7 @@ public class CylinderBrush extends AbstractPerformerBrush {
                 messenger.sendMessage(ChatFormatting.DARK_AQUA + "/b c [true|false] -- Uses a true circle algorithm instead of the skinnier version with classic sniper nubs. (false is default)");
                 messenger.sendMessage(ChatFormatting.AQUA + "/b c h[n] -- Sets the cylinder v.voxelHeight to n. Default is 1.");
                 messenger.sendMessage(ChatFormatting.BLUE + "/b c c[n] -- Sets the origin of the cylinder compared to the target block to n. Positive numbers will move the cylinder upward, negative will move it downward.");
+                messenger.sendMessage(ChatFormatting.DARK_GREEN + "/b c center -- Toggles whether the brush will center on a block or the corner of a block in smallBlocks mode");
                 return;
             }
 
@@ -60,22 +62,32 @@ public class CylinderBrush extends AbstractPerformerBrush {
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
+                } else { if (parameter.equalsIgnoreCase("center")) {
+                    if (!this.centerBlock) {
+                        this.centerBlock = true;
+                        messenger.sendMessage(ChatFormatting.AQUA + "centerBlock ON. The brush will now be centered on a block in smallBlocks mode.");
+                    } else {
+                        this.centerBlock = false;
+                        messenger.sendMessage(ChatFormatting.AQUA + "centerBlock OFF. The brush will now be centered on the corner of a block in smallBlocks mode.");
+                    }
                 } else {
                     messenger.sendMessage(ChatFormatting.RED + "Invalid brush parameters! Use the \"info\" parameter to display parameter info.");
+                    }
                 }
             }
         }
 
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snipe) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
-            return SuggestionHelper.limitByPrefix(Stream.of("h[", "c[", "true", "false"), parameter);
+            return SuggestionHelper.limitByPrefix(Stream.of("center", "h[", "c[", "true", "false"), parameter);
         } else {
-            return SuggestionHelper.limitByPrefix(Stream.of("h[", "c[", "true", "false"), "");
+            return SuggestionHelper.limitByPrefix(Stream.of("center", "h[", "c[", "true", "false"), "");
         }
     }
+
 
     public void handleArrowAction(Snipe snipe) {
         BlockVector3 targetBlock = this.getTargetBlock();
@@ -134,25 +146,27 @@ public class CylinderBrush extends AbstractPerformerBrush {
             }
         }
 
+        int sizeOffset = (useSmallBlocks && centerBlock) ? 1 : 0;
+        int xOffset = (useSmallBlocks && centerBlock) ? 2*(this.offsetVector.getX()-this.getTargetBlock().getX()) - 1 : 0;
+        int zOffset = (useSmallBlocks && centerBlock) ? 2*(this.offsetVector.getZ()-this.getTargetBlock().getZ()) - 1 : 0;
+
         blockX = targetBlock.getX();
         int blockZ = targetBlock.getZ();
-        double bSquared = Math.pow((double) brushSize + this.trueCircle, 2.0D);
+        double bSquared = Math.pow((double) brushSize + this.trueCircle + sizeOffset/2.0D, 2.0D);
 
         for (int y = yEndPoint; y >= yStartingPoint; --y) {
-            for (int x = brushSize; x >= 0; --x) {
-                double xSquared = Math.pow(x, 2.0D);
-
-                for (int z = brushSize; z >= 0; --z) {
-                    if (xSquared + Math.pow(z, 2.0D) <= bSquared) {
+            for (int x = brushSize+sizeOffset; x >= 0; --x) {
+                double xSquared = Math.pow(x+xOffset/2.0D, 2.0D);
+                for (int z = brushSize+sizeOffset; z >= 0; --z) {
+                    if (xSquared + Math.pow(z+zOffset/2.0D, 2.0D) <= bSquared) {
                         this.performer.perform(this.getEditSession(), blockX + x, this.clampY(y), blockZ + z, this.clampY(blockX + x, y, blockZ + z));
-                        this.performer.perform(this.getEditSession(), blockX + x, this.clampY(y), blockZ - z, this.clampY(blockX + x, y, blockZ - z));
-                        this.performer.perform(this.getEditSession(), blockX - x, this.clampY(y), blockZ + z, this.clampY(blockX - x, y, blockZ + z));
-                        this.performer.perform(this.getEditSession(), blockX - x, this.clampY(y), blockZ - z, this.clampY(blockX - x, y, blockZ - z));
+                        this.performer.perform(this.getEditSession(), blockX + x, this.clampY(y), blockZ - z - zOffset, this.clampY(blockX + x, y, blockZ - z - zOffset));
+                        this.performer.perform(this.getEditSession(), blockX - x - xOffset, this.clampY(y), blockZ + z, this.clampY(blockX - x - xOffset, y, blockZ + z));
+                        this.performer.perform(this.getEditSession(), blockX - x - xOffset, this.clampY(y), blockZ - z - zOffset, this.clampY(blockX - x - xOffset, y, blockZ - z - zOffset));
                     }
                 }
             }
         }
-
     }
 
     public void sendInfo(Snipe snipe) {

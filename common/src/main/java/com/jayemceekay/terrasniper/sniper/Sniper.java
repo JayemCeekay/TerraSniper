@@ -40,6 +40,7 @@ public class Sniper {
     private boolean enabled = false;
     public boolean useSmallBlocks = false;
     public boolean autoLayer = false;
+    public boolean keepPlants = false;
 
     public Sniper(Player player) {
         this.player = player;
@@ -222,6 +223,15 @@ public class Sniper {
     public void setAutoLayerEnabled(boolean enabled) {
         this.autoLayer = enabled;
     }
+
+    public boolean keepPlantsEnabled() {
+        return this.keepPlants;
+    }
+
+    public void setKeepPlantsEnabled(boolean enabled) {
+        this.keepPlants = enabled;
+    }
+
 
     public List<Toolkit> getToolkits() {
         return this.toolkits;

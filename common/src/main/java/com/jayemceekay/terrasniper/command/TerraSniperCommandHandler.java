@@ -560,6 +560,18 @@ public class TerraSniperCommandHandler {
                     }
                     return 0;
                 }))
+                .then(Commands.literal("keepplants").executes((context) -> {
+                    Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
+                    Messenger messenger = new Messenger(sniper.getPlayer());
+                    if (sniper.keepPlantsEnabled()) {
+                        sniper.setKeepPlantsEnabled(false);
+                        messenger.sendMessage(ChatFormatting.RED + "KeepPlants mode is now disabled.");
+                    } else if (!sniper.keepPlantsEnabled()) {
+                        sniper.setKeepPlantsEnabled(true);
+                        messenger.sendMessage(ChatFormatting.GREEN + "KeepPlants mode is now enabled.");
+                    }
+                    return 0;
+                }))
                 .then(Commands.literal("range").then(Commands.argument("rangeValue", StringArgumentType.string()).executes((context) -> {
                     Sniper sniper = TerraSniper.sniperRegistry.getSniper(context.getSource().getPlayerOrException().getUUID());
                     Messenger messenger = new Messenger(sniper.getPlayer());
@@ -603,3 +615,4 @@ public class TerraSniperCommandHandler {
                 }));
     }
 }
+

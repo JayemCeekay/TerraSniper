@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 
 public class LayerBrush extends AbstractBrush {
     private boolean smallBlocksEnabled = false;
-    protected Map<BlockVector3,BlockState> setBlockBuffer = new HashMap<>();
     private static final Map<Integer,BlockVector3[]> POSITIONS = new HashMap<>();
     private static final Map<BlockVector3,Integer> LAYER_DIRECTION_FROM_BLOCKVEC = Map.ofEntries(
         Map.entry(BlockVector3.UNIT_X      , LAYER_WEST),
@@ -143,6 +142,7 @@ public class LayerBrush extends AbstractBrush {
             //pause(); System.out.println("waterlogged: " + blockWrapper.getWaterlogged());
             BlockState block = composeBlock(blockWrapper.getMaterial(), shape, blockWrapper.getWaterlogged());
             try {
+                //System.out.println("setting    BLOCK "+block+"    at    LOCATION "+blockWrapper.getX()+","+blockWrapper.getY()+","+blockWrapper.getZ());
                 setBlock(BlockVector3.at(blockWrapper.getX(), blockWrapper.getY(), blockWrapper.getZ()), block);
             } catch (MaxChangedBlocksException except) {
                 except.printStackTrace();
@@ -207,13 +207,14 @@ public class LayerBrush extends AbstractBrush {
    }
 
     @Override
-    public BlockState getBlock(int x, int y, int z) {
-        BlockVector3 position = BlockVector3.at(x, y, z);
+    public BlockState getBlock(BlockVector3 position) {
         if (this.setBlockBuffer.containsKey(position)) {
             // for the layer brush in autoLayer mode, read from the list of already set blocks instead:
             return this.setBlockBuffer.get(position);
         }
-        return this.getEditSession().getBlock(position);
+
+        //return this.getEditSession().getBlock(position);
+        return actuallyGetBlock(position);
     }
 
     static class BlockChangeTracker {

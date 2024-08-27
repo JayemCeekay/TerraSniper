@@ -264,8 +264,8 @@ public class ErodeBrush extends AbstractBrush {
 
     public List<String> handleCompletions(String[] parameters, Snipe snipe) {
         return parameters.length > 0 ?
-                SuggestionHelper.limitByPrefix(IS_ADDITIVE.keySet().stream(), parameters[parameters.length - 1]) :
-                SuggestionHelper.limitByPrefix(IS_ADDITIVE.keySet().stream(), "");
+                SuggestionHelper.limitByPrefix(Stream.of("f[", "e[", "F[", "E[", "default", "melt", "fill", "smooth", "lift", "floatclean"), parameters[parameters.length - 1]) :
+                SuggestionHelper.limitByPrefix(Stream.of("f[", "e[", "F[", "E[", "default", "melt", "fill", "smooth", "lift", "floatclean"), "");
     }
 
     public void sendInfo(Snipe snipe) {

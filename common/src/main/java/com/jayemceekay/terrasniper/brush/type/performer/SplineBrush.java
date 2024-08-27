@@ -76,7 +76,7 @@ public class SplineBrush extends AbstractPerformerBrush {
 
     }
 
-    public List<String> handleCompletions(String[] parameters) {
+    public List<String> handleCompletions(String[] parameters, Snipe snipe) {
         if (parameters.length > 0) {
             String parameter = parameters[parameters.length - 1];
             return SuggestionHelper.limitByPrefix(Stream.of("ss", "sc", "clear", "ren"), parameter);
