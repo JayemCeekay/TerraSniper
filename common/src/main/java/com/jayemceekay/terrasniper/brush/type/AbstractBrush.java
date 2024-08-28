@@ -248,7 +248,7 @@ public abstract class AbstractBrush implements Brush {
     // inverse map:
     private static final Map<String, String> CONQUEST_TO_VANILLA_MATERIAL = new HashMap<>();
 
-    private static final Set<String> PLANTS = new HashSet<>();
+    protected static final Set<String> PLANTS = new HashSet<>();
 
     // initialization of these maps:
     static {

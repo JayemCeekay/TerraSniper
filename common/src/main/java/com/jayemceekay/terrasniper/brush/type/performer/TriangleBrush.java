@@ -11,6 +11,12 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 public class TriangleBrush extends AbstractPerformerBrush {
+    private final double[] coordinatesOneFullBlock = new double[3];
+    private final double[] coordinatesTwoFullBlock = new double[3];
+    private final double[] coordinatesThreeFullBlock = new double[3];
+    private final double[] coordinatesOffsetOne = new double[3];
+    private final double[] coordinatesOffsetTwo = new double[3];
+    private final double[] coordinatesOffsetThree = new double[3];
     private final double[] coordinatesOne = new double[3];
     private final double[] coordinatesTwo = new double[3];
     private final double[] coordinatesThree = new double[3];
@@ -41,6 +47,32 @@ public class TriangleBrush extends AbstractPerformerBrush {
     }
 
     public void handleGunpowderAction(Snipe snipe) {
+        if(this.useSmallBlocks) {
+            double[] offset = new double[3];
+            offset[0] = this.offsetVector.getX();
+            offset[1] = this.offsetVector.getY();
+            offset[2] = this.offsetVector.getZ();
+            for (int i=0; i<3; i++) {
+                this.coordinatesOne[i]   = this.coordinatesOneFullBlock[i]   + this.coordinatesOffsetOne[i]   - offset[i];
+                this.coordinatesTwo[i]   = this.coordinatesTwoFullBlock[i]   + this.coordinatesOffsetTwo[i]   - offset[i];
+                this.coordinatesThree[i] = this.coordinatesThreeFullBlock[i] + this.coordinatesOffsetThree[i] - offset[i];
+            }
+        }
+        else {
+            for (int i=0; i<3; i++) {
+                this.coordinatesOne[i]   = this.coordinatesOneFullBlock[i];
+                this.coordinatesTwo[i]   = this.coordinatesTwoFullBlock[i];
+                this.coordinatesThree[i] = this.coordinatesThreeFullBlock[i];
+            }
+        }
+        for (int i=0; i<=2; i+=2) {
+            this.coordinatesOne[i]   += 0.5D * coordinatesOne[i]   / Math.abs(coordinatesOne[i]);
+            this.coordinatesTwo[i]   += 0.5D * coordinatesTwo[i]   / Math.abs(coordinatesTwo[i]);
+            this.coordinatesThree[i] += 0.5D * coordinatesThree[i] / Math.abs(coordinatesThree[i]);
+        }
+        this.coordinatesOne[1]   += 0.5D;
+        this.coordinatesTwo[1]   += 0.5D;
+        this.coordinatesThree[1] += 0.5D;
         this.triangleP(snipe);
     }
 
@@ -50,28 +82,37 @@ public class TriangleBrush extends AbstractPerformerBrush {
         int targetBlockX = targetBlock.getX();
         int targetBlockY = targetBlock.getY();
         int targetBlockZ = targetBlock.getZ();
-        double x = (double) targetBlockX + 0.5D * (double) targetBlockX / (double) Math.abs(targetBlockX);
-        double y = (double) targetBlockY + 0.5D;
-        double z = (double) targetBlockZ + 0.5D * (double) targetBlockZ / (double) Math.abs(targetBlockZ);
         switch (this.cornerNumber) {
             case 1:
-                this.coordinatesOne[0] = x;
-                this.coordinatesOne[1] = y;
-                this.coordinatesOne[2] = z;
+                this.coordinatesOneFullBlock[0] = targetBlockX;
+                this.coordinatesOneFullBlock[1] = targetBlockY;
+                this.coordinatesOneFullBlock[2] = targetBlockZ;
+                this.setOffsetVector(snipe);
+                this.coordinatesOffsetOne[0] = this.offsetVector.getX();
+                this.coordinatesOffsetOne[1] = this.offsetVector.getY();
+                this.coordinatesOffsetOne[2] = this.offsetVector.getZ();
                 this.cornerNumber = 2;
                 messenger.sendMessage(ChatFormatting.GRAY + "First Corner set.");
                 break;
             case 2:
-                this.coordinatesTwo[0] = x;
-                this.coordinatesTwo[1] = y;
-                this.coordinatesTwo[2] = z;
+                this.coordinatesTwoFullBlock[0] = targetBlockX;
+                this.coordinatesTwoFullBlock[1] = targetBlockY;
+                this.coordinatesTwoFullBlock[2] = targetBlockZ;
+                this.setOffsetVector(snipe);
+                this.coordinatesOffsetTwo[0] = this.offsetVector.getX();
+                this.coordinatesOffsetTwo[1] = this.offsetVector.getY();
+                this.coordinatesOffsetTwo[2] = this.offsetVector.getZ();
                 this.cornerNumber = 3;
                 messenger.sendMessage(ChatFormatting.GRAY + "Second Corner set.");
                 break;
             case 3:
-                this.coordinatesThree[0] = x;
-                this.coordinatesThree[1] = y;
-                this.coordinatesThree[2] = z;
+                this.coordinatesThreeFullBlock[0] = targetBlockX;
+                this.coordinatesThreeFullBlock[1] = targetBlockY;
+                this.coordinatesThreeFullBlock[2] = targetBlockZ;
+                this.setOffsetVector(snipe);
+                this.coordinatesOffsetThree[0] = this.offsetVector.getX();
+                this.coordinatesOffsetThree[1] = this.offsetVector.getY();
+                this.coordinatesOffsetThree[2] = this.offsetVector.getZ();
                 this.cornerNumber = 1;
                 messenger.sendMessage(ChatFormatting.GRAY + "Third Corner set.");
         }

@@ -40,6 +40,7 @@ public class BrushRegistrar {
         this.registerVoxelDiscBrush();
         this.registerVoxelDiscFaceBrush();
         this.registerWaterLevelBrush();
+        this.registerFixPlantsBrush();
         this.registerBlobBrush();
         this.registerBlendVoxelBrush();
         this.registerBlendVoxelDiscBrush();
@@ -573,6 +574,18 @@ public class BrushRegistrar {
                 .alias("waterlevel")
                 .brushPatternType(BrushPatternType.PATTERN)
                 .creator(WaterLevelBrush::new)
+                .build();
+        this.registry.register(properties);
+    }
+
+    private void registerFixPlantsBrush() {
+        BrushProperties properties = BrushProperties.builder()
+                .name("Fix Plants")
+                .alias("f")
+                .alias("fp")
+                .alias("fixplants")
+                .brushPatternType(BrushPatternType.PATTERN)
+                .creator(FixPlantsBrush::new)
                 .build();
         this.registry.register(properties);
     }
