@@ -208,9 +208,11 @@ public class LayerBrush extends AbstractBrush {
 
     @Override
     public BlockState getBlock(BlockVector3 position) {
-        if (this.setBlockBuffer.containsKey(position)) {
-            // for the layer brush in autoLayer mode, read from the list of already set blocks instead:
-            return this.setBlockBuffer.get(position);
+        if (this.setBlockBuffer != null) {
+            if (this.setBlockBuffer.containsKey(position)) {
+                // for the layer brush in autoLayer mode, read from the list of already set blocks instead:
+                return this.setBlockBuffer.get(position);
+            }
         }
 
         //return this.getEditSession().getBlock(position);
