@@ -7,6 +7,7 @@ import com.jayemceekay.terrasniper.util.text.NumericParser;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.registry.state.Property;
+import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import net.minecraft.ChatFormatting;
@@ -38,15 +39,20 @@ public class LayerBrush extends AbstractBrush {
             Map.entry(LAYER_SOUTH, BlockVector3.UNIT_MINUS_Z)
     );
 
-    private static final ReplacementRule AVERAGE    = (h,nh) -> ((2*(h + Arrays.stream(nh).sum()) + 5 ) / 10);
-    private static final ReplacementRule RAISE      = (h,nh) -> ((2*(h + Arrays.stream(nh).sum()) + 10) / 10);
-    private static final ReplacementRule LOWER      = (h,nh) -> ((2*(h + Arrays.stream(nh).sum())     ) / 10);
-    private static final ReplacementRule PERSISTENT = (h,nh) -> (((2*h + Arrays.stream(nh).sum()) + 3 ) / 6);
-    private static final ReplacementRule MAX        = (h,nh) -> Math.max(Math.max(Math.max((2*(h+nh[0]+nh[1])+3)/6, (2*(h+nh[0]+nh[2])+3)/6), (2*(h+nh[0]+nh[3])+3)/6), Math.max(Math.max((2*(h+nh[1]+nh[2])+3)/6, (2*(h+nh[1]+nh[3])+3)/6), (2*(h+nh[2]+nh[3])+3)/6));
-    private static final ReplacementRule MIN        = (h,nh) -> Math.min(Math.min(Math.min((2*(h+nh[0]+nh[1])+3)/6, (2*(h+nh[0]+nh[2])+3)/6), (2*(h+nh[0]+nh[3])+3)/6), Math.min(Math.min((2*(h+nh[1]+nh[2])+3)/6, (2*(h+nh[1]+nh[3])+3)/6), (2*(h+nh[2]+nh[3])+3)/6));
-    private static final ReplacementRule MAXIG      = (h,nh) -> Math.max(Math.max(Math.max(((nh[0]+nh[1])+1)/2, ((nh[0]+nh[2])+1)/2), ((nh[0]+nh[3])+1)/2), Math.max(Math.max(((nh[1]+nh[2])+1)/2, ((nh[1]+nh[3])+1)/2), ((nh[2]+nh[3])+1)/2));
-    private static final ReplacementRule MINIG      = (h,nh) -> Math.min(Math.min(Math.min(((nh[0]+nh[1])+1)/2, ((nh[0]+nh[2])+1)/2), ((nh[0]+nh[3])+1)/2), Math.min(Math.min(((nh[1]+nh[2])+1)/2, ((nh[1]+nh[3])+1)/2), ((nh[2]+nh[3])+1)/2));
-
+    private static final ReplacementRule AVERAGE    = (h,nh) -> ((2.*(h + Arrays.stream(nh).sum())) / 10.);
+    private static final ReplacementRule RAISE      = (h,nh) -> ((2.*(h + Arrays.stream(nh).sum()) + 5.) / 10.);
+    private static final ReplacementRule LOWER      = (h,nh) -> ((2.*(h + Arrays.stream(nh).sum()) - 5.) / 10.);
+    private static final ReplacementRule PERSISTENT = (h,nh) -> (((2.*h + Arrays.stream(nh).sum()) ) / 6.);
+    private static final ReplacementRule MAX        = (h,nh) -> Math.max(Math.max(Math.max(((h+nh[0]+nh[1]))/3., ((h+nh[0]+nh[2])+3.)/3.), ((h+nh[0]+nh[3])+3.)/3.), Math.max(Math.max(((h+nh[1]+nh[2])+3.)/3., ((h+nh[1]+nh[3])+3.)/3.), ((h+nh[2]+nh[3])+3.)/3.));
+    private static final ReplacementRule MIN        = (h,nh) -> Math.min(Math.min(Math.min(((h+nh[0]+nh[1])+3.)/3., ((h+nh[0]+nh[2])+3.)/3.), ((h+nh[0]+nh[3])+3.)/3.), Math.min(Math.min(((h+nh[1]+nh[2])+3.)/3., ((h+nh[1]+nh[3])+3.)/3.), ((h+nh[2]+nh[3])+3.)/3.));
+    private static final ReplacementRule MAXIG      = (h,nh) -> Math.max(Math.max(Math.max(((nh[0]+nh[1])+1.)/2., ((nh[0]+nh[2])+1.)/2.), ((nh[0]+nh[3])+1.)/2.), Math.max(Math.max(((nh[1]+nh[2])+1.)/2., ((nh[1]+nh[3])+1.)/2.), ((nh[2]+nh[3])+1.)/2.));
+    private static final ReplacementRule MINIG      = (h,nh) -> Math.min(Math.min(Math.min(((nh[0]+nh[1])+1.)/2., ((nh[0]+nh[2])+1.)/2.), ((nh[0]+nh[3])+1.)/2.), Math.min(Math.min(((nh[1]+nh[2])+1.)/2., ((nh[1]+nh[3])+1.)/2.), ((nh[2]+nh[3])+1.)/2.));
+/*
+    private static final ReplacementRule MAX        = (h,nh) -> Math.max(Math.max(Math.max((2.*(h+nh[0]+nh[1])+3.)/6., (2.*(h+nh[0]+nh[2])+3.)/6.), (2.*(h+nh[0]+nh[3])+3.)/6.), Math.max(Math.max((2.*(h+nh[1]+nh[2])+3.)/6., (2.*(h+nh[1]+nh[3])+3.)/6.), (2.*(h+nh[2]+nh[3])+3.)/6.));
+    private static final ReplacementRule MIN        = (h,nh) -> Math.min(Math.min(Math.min((2.*(h+nh[0]+nh[1])+3.)/6., (2.*(h+nh[0]+nh[2])+3.)/6.), (2.*(h+nh[0]+nh[3])+3.)/6.), Math.min(Math.min((2.*(h+nh[1]+nh[2])+3.)/6., (2.*(h+nh[1]+nh[3])+3.)/6.), (2.*(h+nh[2]+nh[3])+3.)/6.));
+    private static final ReplacementRule MAXIG      = (h,nh) -> Math.max(Math.max(Math.max(((nh[0]+nh[1])+1.)/2., ((nh[0]+nh[2])+1.)/2.), ((nh[0]+nh[3])+1.)/2.), Math.max(Math.max(((nh[1]+nh[2])+1.)/2., ((nh[1]+nh[3])+1.)/2.), ((nh[2]+nh[3])+1.)/2.));
+    private static final ReplacementRule MINIG      = (h,nh) -> Math.min(Math.min(Math.min(((nh[0]+nh[1])+1.)/2., ((nh[0]+nh[2])+1.)/2.), ((nh[0]+nh[3])+1.)/2.), Math.min(Math.min(((nh[1]+nh[2])+1.)/2., ((nh[1]+nh[3])+1.)/2.), ((nh[2]+nh[3])+1.)/2.));
+ */
     private static final Map<String,ReplacementRule[]> RULE_MAP = Map.ofEntries(
             Map.entry("average", new ReplacementRule[]{AVERAGE, AVERAGE}),
             Map.entry("raise", new ReplacementRule[]{RAISE, LOWER}),
@@ -60,6 +66,7 @@ public class LayerBrush extends AbstractBrush {
     private static final Map<String, Boolean> IS_ADDITIVE = Map.ofEntries(
             Map.entry("average", true),
             Map.entry("raise", true),
+            Map.entry("lower", false),
             Map.entry("max", true),
             Map.entry("min", false),
             Map.entry("maxig", true),
@@ -68,10 +75,15 @@ public class LayerBrush extends AbstractBrush {
     );
 
     private String smoothingMode = "average";
-    private int numberOfIterations = 1;
+    private int numberOfIterations = 2;
+    private static final int NORTH_SOUTH = 1;
+    private static final int EAST_WEST = 2;
+    private static final int UP_DOWN = 3;
+    private static final int AUTO = 4;
+    private int faceDirection = AUTO;
 
     public interface ReplacementRule {
-        int apply(int height, int[] neighborHeights);
+        double apply(double height, double[] neighborHeights);
     }
 
     static {
@@ -113,7 +125,30 @@ public class LayerBrush extends AbstractBrush {
         int brushSize = toolkitProperties.getBrushSize();
         BlockVector3 targetBlock = this.getTargetBlock();
         BlockChangeTracker blockChangeTracker = new BlockChangeTracker(this, brushSize, targetBlock);
-        
+
+        boolean autoFace=false;
+        if (this.faceDirection==AUTO) {
+            autoFace=true;
+            Direction blockFace = getDirection(getTargetBlock(), getLastBlock());
+
+            switch (blockFace) {
+                case NORTH:
+                case SOUTH:
+                    this.faceDirection=NORTH_SOUTH;
+                    break;
+                case EAST:
+                case WEST:
+                    this.faceDirection=EAST_WEST;
+                    break;
+                case UP:
+                case DOWN:
+                    this.faceDirection=UP_DOWN;
+                    break;
+                default:
+                    break;
+            }
+        }
+
         //pause(); System.out.println(" ==== FLATTENING ================================================================================================================================================================");
         // (1) replace blocks in "flat" areas with matching layers:
         blockChangeTracker.init();
@@ -131,9 +166,12 @@ public class LayerBrush extends AbstractBrush {
         // (4) set the blocks
         while (blockIterator.hasNext()) {
             BlockWrapper blockWrapper = (BlockWrapper) blockIterator.next();
-            int shape = blockWrapper.getShape() + (1<<8)*blockWrapper.getHeight() + (1<<11)*blockWrapper.getDirection();
-            if (blockWrapper.getHeight()==0 && blockWrapper.getDirection()!=0) {shape = 0;}
-            if (blockWrapper.getHeight()==8) {shape = 0b11111111;}
+            int height = (int) Math.floor(0.5+ blockWrapper.getHeight());
+            //System.out.println("blockWrapper.getHeight(): "+blockWrapper.getHeight());
+            //System.out.println("height:                   "+height);
+            int shape = blockWrapper.getShape() + (1<<8)* height + (1<<11)*blockWrapper.getDirection();
+            if (height==0 && blockWrapper.getDirection()!=0) {shape = 0;}
+            if (height==8) {shape = 0b11111111;}
             //pause(); System.out.println(" - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ");
             //pause(); System.out.println("composing block with");
             //pause(); System.out.println("position:    " + blockWrapper.getX() + ", " + blockWrapper.getY() + ", " + blockWrapper.getZ());
@@ -147,6 +185,10 @@ public class LayerBrush extends AbstractBrush {
             } catch (MaxChangedBlocksException except) {
                 except.printStackTrace();
             }
+        }
+
+        if (autoFace) {
+            this.faceDirection=AUTO;
         }
     }
 
@@ -165,6 +207,7 @@ public class LayerBrush extends AbstractBrush {
             if (parameter.equalsIgnoreCase("info")) {
                 messenger.sendMessage(ChatFormatting.AQUA + "smoothing mode: " + this.smoothingMode);
                 messenger.sendMessage(ChatFormatting.AQUA + "iterations: " + this.numberOfIterations);
+                messenger.sendMessage(ChatFormatting.AQUA + "face direction: " + (this.faceDirection==AUTO ? "auto" : (this.faceDirection==UP_DOWN ? "y" : (this.faceDirection==EAST_WEST ? "x" : "z"))));
                 continue;
             }
 
@@ -172,6 +215,30 @@ public class LayerBrush extends AbstractBrush {
                 this.setAdditiveBrush(IS_ADDITIVE.get(parameter));
                 this.smoothingMode = parameter;
                 messenger.sendMessage(ChatFormatting.LIGHT_PURPLE + "Smoothing preset set to: " + parameter);
+                continue;
+            }
+
+            if (parameter.equalsIgnoreCase("auto")) {
+                this.faceDirection = AUTO;
+                messenger.sendMessage(ChatFormatting.LIGHT_PURPLE + "Face Direction set to: " + parameter);
+                continue;
+            }
+
+            if (parameter.equalsIgnoreCase("y")) {
+                this.faceDirection = UP_DOWN;
+                messenger.sendMessage(ChatFormatting.LIGHT_PURPLE + "Face Direction set to: " + parameter);
+                continue;
+            }
+
+            if (parameter.equalsIgnoreCase("x")) {
+                this.faceDirection = EAST_WEST;
+                messenger.sendMessage(ChatFormatting.LIGHT_PURPLE + "Face Direction set to: " + parameter);
+                continue;
+            }
+
+            if (parameter.equalsIgnoreCase("z")) {
+                this.faceDirection = NORTH_SOUTH;
+                messenger.sendMessage(ChatFormatting.LIGHT_PURPLE + "Face Direction set to: " + parameter);
                 continue;
             }
 
@@ -194,8 +261,8 @@ public class LayerBrush extends AbstractBrush {
     }*/
     public List<String> handleCompletions(String[] parameters, Snipe snipe) {
         return parameters.length > 0 ?
-                SuggestionHelper.limitByPrefix(RULE_MAP.keySet().stream(), parameters[parameters.length - 1]) :
-                SuggestionHelper.limitByPrefix(RULE_MAP.keySet().stream(), "");
+                SuggestionHelper.limitByPrefix(Stream.concat(RULE_MAP.keySet().stream(), Stream.of("x", "y", "z", "auto")), parameters[parameters.length - 1]) :
+                SuggestionHelper.limitByPrefix(Stream.concat(RULE_MAP.keySet().stream(), Stream.of("x", "y", "z", "auto")), "");
     }
 
     public void sendInfo(Snipe snipe) {
@@ -204,6 +271,7 @@ public class LayerBrush extends AbstractBrush {
         messenger.sendBrushSizeMessage();
         messenger.sendMessage(ChatFormatting.AQUA + "smoothing mode: "+this.smoothingMode);
         messenger.sendMessage(ChatFormatting.AQUA + "iterations: "+this.numberOfIterations);
+        messenger.sendMessage(ChatFormatting.AQUA + "face direction: " + (this.faceDirection==AUTO ? "auto" : (this.faceDirection==UP_DOWN ? "y" : (this.faceDirection==EAST_WEST ? "x" : "z"))));
    }
 
     @Override
@@ -252,7 +320,7 @@ public class LayerBrush extends AbstractBrush {
                             for(int i=0; i<6; i++) {
                                 neighbors[i] = this.get(neighborPositions[i], 0);
                             }
-                            boolean isSurface = block.initSurface(neighbors, brushReference.smallBlocksEnabled);
+                            boolean isSurface = block.initSurface(neighbors, brushReference.smallBlocksEnabled, brushReference.faceDirection);
                             if (isSurface) {this.put(currentPosition,block,0);}
                         }
                     }
@@ -273,7 +341,7 @@ public class LayerBrush extends AbstractBrush {
                         if (Math.pow(x - targetX, 2.0D) + Math.pow(y - targetY, 2.0D) + Math.pow(z - targetZ, 2.0D) <= Math.pow(brushSize, 2.0D)) {
                             BlockVector3 currentPosition = BlockVector3.at(x, y, z);
                             */
-            
+            Set<BlockVector3> removePositions = new HashSet<>();
             for(BlockVector3 currentPosition : this.positionSet)
             {
                 BlockWrapper currentBlock = this.get(currentPosition, currentIteration);
@@ -284,7 +352,7 @@ public class LayerBrush extends AbstractBrush {
                 if(surface!=0)
                 {
                     BlockVector3[] neighborPositions = POSITIONS.get(surface);
-                    int[] neighborHeights = new int[4];
+                    double[] neighborHeights = new double[4];
                     BlockWrapper neighbor;
                     for(int i=0; i<4; i++) {
                         neighbor = this.get(currentPosition.add(neighborPositions[i]), currentIteration);
@@ -297,23 +365,22 @@ public class LayerBrush extends AbstractBrush {
                             // might want to factor in the orientation of the outer surface as well ...
                         }
                     }
-                    int height = currentBlock.getHeight();
+                    double height = currentBlock.getHeight();
 
-                    int newHeight = Math.max(0,Math.min(8,rule.apply(height, neighborHeights)));
+                    double newHeight = Math.max(0.,Math.min(8.,rule.apply(height, neighborHeights)));
                     //pause(); System.out.println(" height          : " + height);
                     //pause(); System.out.println(" neighborHeights : " + Arrays.toString(neighborHeights));
                     //pause(); System.out.println(" newHeight       : " + newHeight);
 
+                    double belowHeight = 8.;
+                    double aboveHeight = 0.;
+                    BlockVector3 belowPosition = currentPosition.subtract(BLOCKVEC_FROM_LAYER_DIRECTION.get(currentBlock.getDirection()));
+                    BlockVector3 abovePosition = currentPosition.add(BLOCKVEC_FROM_LAYER_DIRECTION.get(currentBlock.getDirection()));
+                    BlockWrapper belowBlock = this.get(belowPosition, currentIteration+1);
+                    BlockWrapper aboveBlock = this.get(abovePosition, currentIteration+1);
+
                     if(newHeight!=height) {
                         // test below and MERGE with slabs in those layers!
-
-                        int belowHeight = 8;
-                        int aboveHeight = 0;
-
-                        BlockVector3 belowPosition = currentPosition.subtract(BLOCKVEC_FROM_LAYER_DIRECTION.get(currentBlock.getDirection()));
-                        BlockVector3 abovePosition = currentPosition.add(BLOCKVEC_FROM_LAYER_DIRECTION.get(currentBlock.getDirection()));
-                        BlockWrapper belowBlock = this.get(belowPosition, currentIteration+1);
-                        BlockWrapper aboveBlock = this.get(abovePosition, currentIteration+1);
 
                         if(this.blockChanges.get(currentIteration).containsKey(belowPosition) && belowBlock.getSurface()==surface) {
                             //belowBlock = this.blockChanges.get(currentIteration).get(belowPosition);
@@ -326,10 +393,10 @@ public class LayerBrush extends AbstractBrush {
                             //pause(); System.out.println("    there's a changed layer ABOVE!");
                         }
 
-                        int totalHeight = belowHeight + newHeight + aboveHeight;
+                        double totalHeight = belowHeight + newHeight + aboveHeight;
                         //pause(); System.out.println("    totalHeight: "+totalHeight+"="+belowHeight+"+"+newHeight+"+"+aboveHeight);
 
-                        int[] heights = new int[3];
+                        double[] heights = new double[3];
                         for(int i=0; i<3; i++) {
                             if(totalHeight>=8) {
                                 heights[i] = 8;
@@ -340,6 +407,7 @@ public class LayerBrush extends AbstractBrush {
                                 totalHeight = 0;
                             }
                         }
+                        //System.out.println("heights: "+heights[0]+heights[1]+heights[2]);
 
                         //pause(); System.out.println("    heights:" + Arrays.toString(heights));
 
@@ -388,9 +456,24 @@ public class LayerBrush extends AbstractBrush {
                             //pause(); System.out.println("    putting a layer ABOVE!");
                         }
 
+
+
                         //this.put(currentPosition, currentBlock.withHeight(newHeight), currentIteration);
                     }
+
+                    if((height>=0.5 && height<1.5) || (newHeight<height && newHeight>=0.5 && newHeight<1.5)) { // to prevent the algorithm from getting stuck at 1 level, add the block below and remove the block above
+                        if(!this.positionSet.contains(belowPosition)) {
+                            belowBlock.surface = surface;
+                            belowBlock.setDirection(surface);
+                            this.put(belowPosition,belowBlock,currentIteration);
+                            removePositions.add(abovePosition);
+                        }
+                    }
                 }
+            }
+
+            for (BlockVector3 position : removePositions) {
+                this.positionSet.remove(position);
             }
 
                         /*
@@ -480,7 +563,7 @@ public class LayerBrush extends AbstractBrush {
         private String material;
         private final int shape;
         private int direction;
-        private final int height;
+        private final double height;
         private final boolean waterlogged;
         private int surface;
         private boolean changed;
@@ -488,7 +571,7 @@ public class LayerBrush extends AbstractBrush {
         private BlockWrapper(int x, int y, int z, String material) {
             this(x, y, z, material, 0b11111111, false); // default: full block
         }
-        private BlockWrapper(int x, int y, int z, @Nullable String material, int shape, int direction, int height, boolean waterlogged, int surface, boolean changed) {
+        private BlockWrapper(int x, int y, int z, @Nullable String material, int shape, int direction, double height, boolean waterlogged, int surface, boolean changed) {
             this.x = x;
             this.y = y;
             this.z = z;
@@ -513,7 +596,7 @@ public class LayerBrush extends AbstractBrush {
             this.changed=false;
         }
 
-        public BlockWrapper withHeight(int newHeight) {
+        public BlockWrapper withHeight(double newHeight) {
             boolean changed = (newHeight!=this.height);
             return new BlockWrapper(this.x, this.y, this.z, this.material, this.shape, this.direction, newHeight, this.waterlogged, this.surface, changed);
         }
@@ -553,7 +636,7 @@ public class LayerBrush extends AbstractBrush {
         private int getOuterSurface(int dir)
         {
             if(this.direction!=0) {
-                return switch (dir) {
+                return (int) Math.floor(0.5+ switch (dir) {
                     case LAYER_UP    -> direction==LAYER_UP    ? 8 : direction==LAYER_DOWN  ? 0 : this.height;
                     case LAYER_DOWN  -> direction==LAYER_DOWN  ? 8 : direction==LAYER_UP    ? 0 : this.height;
                     case LAYER_NORTH -> direction==LAYER_NORTH ? 8 : direction==LAYER_SOUTH ? 0 : this.height;
@@ -561,7 +644,7 @@ public class LayerBrush extends AbstractBrush {
                     case LAYER_SOUTH -> direction==LAYER_SOUTH ? 8 : direction==LAYER_NORTH ? 0 : this.height;
                     case LAYER_WEST  -> direction==LAYER_WEST  ? 8 : direction==LAYER_EAST  ? 0 : this.height;
                     default -> 0;
-                };
+                });
             }
             return switch (dir) {
                 case LAYER_UP    -> 2 * binaryCrossSum(this.shape & 0b11001100);
@@ -576,7 +659,7 @@ public class LayerBrush extends AbstractBrush {
         public int getOuterSurface(BlockVector3 neighborPosition) {
             return getOuterSurface(LAYER_DIRECTION_FROM_BLOCKVEC.get(neighborPosition));
         }
-        public boolean initSurface(BlockWrapper[] neighbors, boolean smallBlocksEnabled) {
+        public boolean initSurface(BlockWrapper[] neighbors, boolean smallBlocksEnabled, int faceDirection) {
             this.surface = 0;
             int Nix = this.getInnerSurface(LAYER_EAST)  - this.getInnerSurface(LAYER_WEST) ;
             int Niy = this.getInnerSurface(LAYER_UP)    - this.getInnerSurface(LAYER_DOWN) ;
@@ -601,28 +684,28 @@ public class LayerBrush extends AbstractBrush {
 
 
             boolean isSurface = false;
-            if(Math.abs(Ny)==8 && (isSmall(Math.abs(Nx), Math.abs(Nz)) || !smallBlocksEnabled)) {
+            if(Math.abs(Ny)==8 && (smallBlocksEnabled && isSmall(Math.abs(Nx), Math.abs(Nz)) || (!smallBlocksEnabled && faceDirection==UP_DOWN))) {
                 this.surface = Ny>0 ? LAYER_DOWN : LAYER_UP;
                 setDirection(this.surface);
                 //pause(); System.out.println(" ... set surface & direction to " + this.surface);
                 isSurface = true;
             }
-            if(Math.abs(Nx)==8 && isSmall(Math.abs(Ny), Math.abs(Nz)) && smallBlocksEnabled) {
+            else { if(Math.abs(Nx)==8 && (smallBlocksEnabled && isSmall(Math.abs(Ny), Math.abs(Nz)) || (!smallBlocksEnabled && faceDirection==EAST_WEST))) {
                 this.surface = Nx>0 ? LAYER_WEST : LAYER_EAST;
                 setDirection(this.surface);
                 //pause(); System.out.println(" ... set surface & direction to " + this.surface);
                 isSurface = true;
             }
-            if(Math.abs(Nz)==8 && isSmall(Math.abs(Nx), Math.abs(Ny)) && smallBlocksEnabled) {
+            else { if(Math.abs(Nz)==8 && (smallBlocksEnabled && isSmall(Math.abs(Nx), Math.abs(Ny)) || (!smallBlocksEnabled && faceDirection==NORTH_SOUTH))) {
                 this.surface = Nz>0 ? LAYER_NORTH : LAYER_SOUTH;
                 setDirection(this.surface);
                 //pause(); System.out.println(" ... set surface & direction to " + this.surface);
                 isSurface = true;
             }
-            if(Nx!=0 || Ny!=0 || Nz!=0) {
+            else { if(Nx!=0 || Ny!=0 || Nz!=0) {
                 //pause(); System.out.println(" ... is surface (but may not be 'flat') ");
                 isSurface = true;
-            }
+            }}}}
 
             // pull material of empty blocks that are marked to be replaced by layers to the material of the block underneath
             if(surface!=0 && (this.isAir() || this.isLiquid())) {
@@ -650,7 +733,7 @@ public class LayerBrush extends AbstractBrush {
         }
 
         private void setDirection(int direction) {
-            if(direction!=this.direction && (this.height!=8 || this.direction==0)) { // for full blocks, changing the direction it's facing doesnt change the block
+            if(direction!=this.direction && (this.height<7.5 || this.direction==0)) { // for full blocks, changing the direction it's facing doesnt change the block
                 this.direction = direction;
                 this.changed = true;
             }
@@ -669,7 +752,7 @@ public class LayerBrush extends AbstractBrush {
             return this.shape;
         }
 
-        public int getHeight() {
+        public double getHeight() {
             return this.height;
         }
 

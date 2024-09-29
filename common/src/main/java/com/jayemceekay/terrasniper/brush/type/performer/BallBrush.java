@@ -47,9 +47,11 @@ public class BallBrush extends AbstractPerformerBrush {
             } else { if (parameter.equalsIgnoreCase("center")) {
                     if (!this.centerBlock) {
                         this.centerBlock = true;
+                        this.perfectSymmetry = true;
                         messenger.sendMessage(ChatFormatting.AQUA + "centerBlock ON. The brush will now be centered on a block in smallBlocks mode.");
                     } else {
                         this.centerBlock = false;
+                        this.perfectSymmetry = false;
                         messenger.sendMessage(ChatFormatting.AQUA + "centerBlock OFF. The brush will now be centered on the corner of a block in smallBlocks mode.");
                     }
                 } else { if (parameter.equalsIgnoreCase("full")) {
@@ -117,8 +119,20 @@ public class BallBrush extends AbstractPerformerBrush {
     }
 
     private void ball(Snipe snipe, BlockVector3 targetBlock) {
+        this.center = targetBlock;
         ToolkitProperties toolkitProperties = snipe.getToolkitProperties();
         int brushSize = toolkitProperties.getBrushSize();
+        if (this.trueCircle) {
+            this.radii[0] = (int) (2*brushSize + 1.5);
+            this.radii[1] = (int) (2*brushSize + 1.5);
+            this.radii[2] = (int) (2*brushSize + 1.5);
+        }
+        else {
+            this.radii[0] = (int) (2*brushSize + 0.5);
+            this.radii[1] = (int) (2*brushSize + 0.5);
+            this.radii[2] = (int) (2*brushSize + 0.5);
+        }
+
         Painters.sphere().center(targetBlock).radius(brushSize).trueCircle(this.trueCircle).offsetVector(this.offsetVector).centerBlock(this.centerBlock && useSmallBlocks).shape(this.shape).blockSetter((position) -> {
             BlockState block = this.clampY(position);
 

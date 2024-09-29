@@ -90,12 +90,14 @@ public class BiomeBrush extends AbstractBrush {
         BlockVector3 targetBlock = getTargetBlock();
         int targetBlockX = targetBlock.getX();
         int targetBlockZ = targetBlock.getZ();
+        int targetBlockY = targetBlock.getY();
         for (int x = -brushSize; x <= brushSize; x++) {
             double xSquared = Math.pow(x, 2);
             for (int z = -brushSize; z <= brushSize; z++) {
-                if (xSquared + Math.pow(z, 2) <= brushSizeSquared) {
-                    for (int y = editSession.getWorld().getMinY(); y <= editSession.getWorld().getMaxY(); ++y) {
-                        setBiome(targetBlockX + x, y, targetBlockZ + z, this.biomeType);
+                double zSquared = Math.pow(z, 2);
+                for (int y = -brushSize; y <= brushSize; y++) {
+                    if (xSquared + zSquared + Math.pow(y, 2) <= brushSizeSquared) {
+                        setBiome(targetBlockX + x, targetBlockY + y, targetBlockZ + z, this.biomeType);
                     }
                 }
             }

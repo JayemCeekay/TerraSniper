@@ -23,7 +23,6 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
-import it.unimi.dsi.fastutil.objects.ObjectLists;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -45,6 +44,10 @@ public abstract class AbstractBrush implements Brush {
     private boolean canUseSmallBlocks = true;
     protected boolean keepPlants = true;
     protected PlantMap plantMap = null;
+    protected boolean perfectSymmetry=false;
+    protected int[] radii = {-1,-1,-1};
+    protected BlockVector3 center = BlockVector3.ZERO;
+    protected int isHollow = -1;
     protected Map<BlockVector3,BlockState> setBlockBuffer = null;
     protected boolean useAutoLayer = false;
     private boolean canUseAutoLayer = true;
@@ -63,13 +66,14 @@ public abstract class AbstractBrush implements Brush {
     protected static final int LAYER_UP=1, LAYER_DOWN=2, LAYER_NORTH=3, LAYER_EAST=4, LAYER_SOUTH=5, LAYER_WEST=6;
 
     // maps from {0, 1, 2, ... , 255} to the set of possible block shapes (block shapes being encoded as 8 bit numbers, see below):
-    private static final Map<Integer,Set<Integer>> GET_SHAPE_ADDITIVE = new HashMap<>();
-    private static final Map<Integer,Set<Integer>> GET_SHAPE_SUBTRACTIVE = new HashMap<>();
+    private static final Map<Integer,List<Integer>> GET_SHAPE_ADDITIVE = new HashMap<>();
+    private static final Map<Integer,List<Integer>> GET_SHAPE_SUBTRACTIVE = new HashMap<>();
+    private static final Set<Integer> IMPOSSIBLE_SHAPES;
     static{
         List<Integer> initializationKeys = new ArrayList<>(List.of(0b10000100,0b00100100,0b01101000,0b10100100,0b00010111,0b00011011,0b10010011,0b10010110,0b10100101,0b00011111,0b01011011,0b10010111,0b01111011,0b11011011));
         for (int key : initializationKeys) {
-            GET_SHAPE_ADDITIVE.put(key, new HashSet<>());
-            GET_SHAPE_SUBTRACTIVE.put(key, new HashSet<>());
+            GET_SHAPE_ADDITIVE.put(key, new ArrayList<>());
+            GET_SHAPE_SUBTRACTIVE.put(key, new ArrayList<>());
         }
 
         // initialize with maps, that leave the volume the same
@@ -115,7 +119,7 @@ public abstract class AbstractBrush implements Brush {
         GET_SHAPE_ADDITIVE.get(0b01111011).add(0b11111011); GET_SHAPE_SUBTRACTIVE.get(0b01111011).add(0b00111011);
         GET_SHAPE_ADDITIVE.get(0b10010111).add(0b11111011);
 
-        // create the symmetry-group of a group as a list of maps that operate on the 'shape' integers
+        // create the symmetry-group of a cube as a list of maps that operate on the 'shape' integers
         Function<Integer[],Function<Integer,Integer>> createPermutation = (values) -> ((shape) -> {
             int result = 0;
             int v;
@@ -158,32 +162,32 @@ public abstract class AbstractBrush implements Brush {
         int perm_key;
         for (int key : initializationKeys) {
             if (!GET_SHAPE_ADDITIVE.containsKey(key)) {
-                GET_SHAPE_ADDITIVE.put(key, new HashSet<>());}
+                GET_SHAPE_ADDITIVE.put(key, new ArrayList<>());}
             tmp = Set.copyOf(GET_SHAPE_ADDITIVE.get(key));
             for (Function<Integer,Integer> permutation : symmetryGroup) {
                 perm_key = permutation.apply(key);
                 for (int value : tmp) {
                     if (!GET_SHAPE_ADDITIVE.containsKey(perm_key)) {
-                        GET_SHAPE_ADDITIVE.put(perm_key, new HashSet<>());}
+                        GET_SHAPE_ADDITIVE.put(perm_key, new ArrayList<>());}
                     GET_SHAPE_ADDITIVE.get(perm_key).add(permutation.apply(value));
                 }
             }
         }
         for (int key : initializationKeys) {
             if (!GET_SHAPE_SUBTRACTIVE.containsKey(key)) {
-                GET_SHAPE_SUBTRACTIVE.put(key, new HashSet<>());}
+                GET_SHAPE_SUBTRACTIVE.put(key, new ArrayList<>());}
             tmp = Set.copyOf(GET_SHAPE_SUBTRACTIVE.get(key));
             for (Function<Integer,Integer> permutation : symmetryGroup) {
                 perm_key = permutation.apply(key);
                 for (int value : tmp) {
                     if (!GET_SHAPE_SUBTRACTIVE.containsKey(perm_key)) {
-                        GET_SHAPE_SUBTRACTIVE.put(perm_key, new HashSet<>());}
+                        GET_SHAPE_SUBTRACTIVE.put(perm_key, new ArrayList<>());}
                     GET_SHAPE_SUBTRACTIVE.get(perm_key).add(permutation.apply(value));
                 }
             }
         }
 
-        // remove illegal shapes (the 16 rotated corner-stair):
+        // remove illegal shapes (the 16 rotated corner-stairs):
         Set<Integer> illegalShapes = new HashSet<>(Set.of(0b01011101,0b11110100,0b11101010,0b10001111,0b11010101,0b11111000,0b10101110,0b01001111,0b01110101,0b11110010,0b10101011,0b00011111,0b01010111,0b11110001,0b10111010,0b00101111));
         for (int i=0; i<256; i++) {
             if(GET_SHAPE_ADDITIVE.containsKey(i))    {
@@ -191,15 +195,13 @@ public abstract class AbstractBrush implements Brush {
             if(GET_SHAPE_SUBTRACTIVE.containsKey(i)) {
                 GET_SHAPE_SUBTRACTIVE.get(i).removeAll(illegalShapes);}
         }
+        IMPOSSIBLE_SHAPES = new HashSet<>(GET_SHAPE_ADDITIVE.keySet());
         // remove the keys that correspond to the 8 legal corner-stair variants
         int[] legalStairs = new int[]{0b11101100,0b11011100,0b11001110,0b11001101,0b10110011,0b01110011,0b00111011,0b00110111};
         for (int shape : legalStairs) {
-            GET_SHAPE_ADDITIVE.remove(shape);
-            GET_SHAPE_SUBTRACTIVE.remove(shape);
+            IMPOSSIBLE_SHAPES.remove(shape);
         }
-
     }
-    private static final Set<Integer> impossibleShapes = GET_SHAPE_ADDITIVE.keySet();
 
     // block variant suffixes:
     private static final List<String> VARIANTS = new ArrayList<>(List.of("_vertical_slab", "_stairs", "_quarter_slab", "_vertical_quarter", "_eighth_slab", "_vertical_corner_slab", "_corner_slab", "_vertical_corner", "_slab", "_layer"));
@@ -1156,33 +1158,101 @@ public abstract class AbstractBrush implements Brush {
             // remove the (potentially quite long) list to free memory
             this.toDoList = null;
 
+            boolean isBall = false;
+            boolean isEllipsoid = false;
+            if (perfectSymmetry) {
+                if (radii[0]==radii[1] && radii[1]==radii[2]) {
+                    isBall = true;
+                }
+                else {
+                    isEllipsoid = true;
+                }
+            }
+
+
             BlockInformation block;
             int newShape,min;
             int[] neighbors;
             BlockVector3[] neighborPositions;
-            Set<Integer> candidates;
+            Iterator<Integer> candidates;
+            BlockVector3 normalVector = BlockVector3.ZERO;
             for (Map.Entry<BlockVector3, BlockInformation> entry : blocks.entrySet()) {
                 position = entry.getKey();
                 block = entry.getValue();
                 newShape = block.shape;
-                if (impossibleShapes.contains(block.shape)) {
+                if (this.perfectSymmetry && this.isHollow==-1) {
+                    BlockState oldBlock = this.actuallyGetBlock(position);
+                    if (oldBlock == null) {
+                        oldBlock = BlockTypes.AIR.getDefaultState();
+                    } // replace null by air block
+                    String oldBlockId = oldBlock.getBlockType().getId();
+                    int oldShape;
+                    if (oldBlockId.equals("minecraft:air") || oldBlockId.equals("minecraft:cave_air") || oldBlockId.equals("minecraft:void_air") || oldBlockId.equals("minecraft:water") || oldBlockId.equals("minecraft:lava")) {
+                        oldShape = 0;
+                    } else {
+                        // 1) extract block variant (stairs/slab/quarter_slab/...)
+                        int index = separatorIndex(oldBlockId);
+                        String blockMaterial = index == -1 ? fixConquestNames(oldBlockId, "") : fixConquestNames(oldBlockId.substring(0, index), "");
+                        String blockVariant = index == -1 ? "" : oldBlockId.substring(index + 1);
+
+                        // 2) obtain the block shape
+                        oldShape = blockShape(blockMaterial, blockVariant, oldBlock, position, false);
+                    }
+                    int oldVolume = binaryCrossSum(oldShape % (1<<8));
+                    int newVolume = binaryCrossSum(newShape % (1<<8));
+                    if       (oldVolume<newVolume) {this.isHollow=0;}
+                    else { if(oldVolume>newVolume) {this.isHollow=1;} }
+                }
+
+
+
+
+
+                /*if (isEllipsoid) {
+                    BlockVector3 relPosition = position.subtract(this.center);
+                    //Vector3 normalVec = Vector3.at(relPosition.getX() * (radii[1] * radii[2] * radii[1] * radii[2]), relPosition.getY() * (radii[0] * radii[2] * radii[0] * radii[2]), relPosition.getZ() * (radii[0] * radii[1] * radii[0] * radii[1]));
+
+                    //double xx = relPosition.getX() * (radii[1] * radii[2] * radii[1] * radii[2]);
+                    //double yy = relPosition.getY() * (radii[0] * radii[2] * radii[0] * radii[2]);
+                    //double zz = relPosition.getZ() * (radii[0] * radii[1] * radii[0] * radii[1]);
+
+                    double xx = relPosition.getX() * (radii[1] * radii[2])/((double) radii[0]);
+                    double yy = relPosition.getY() * (radii[0] * radii[2])/((double) radii[1]);
+                    double zz = relPosition.getZ() * (radii[0] * radii[1])/((double) radii[2]);
+                    
+                    double normxyz = Math.pow(xx*xx+yy*yy+zz*zz, 0.5);
+                    xx = xx/normxyz;
+                    yy = yy/normxyz;
+                    zz = zz/normxyz;
+                    double tol = 0.025;
+                    if((Math.abs(Math.abs(xx) - Math.abs(yy))<tol && Math.abs(xx) >= Math.abs(zz)) || (Math.abs(Math.abs(yy) - Math.abs(zz))<tol && Math.abs(yy) >= Math.abs(xx)) || (Math.abs(Math.abs(zz) - Math.abs(xx))<tol && Math.abs(zz) >= Math.abs(yy))) {
+                        block.material = "minecraft:green_wool";
+                    }
+                }*/
+
+
+
+
+
+                if (IMPOSSIBLE_SHAPES.contains(block.shape) || (perfectSymmetry && binaryCrossSum(block.shape % (1<<8))==5)) {
                     neighborPositions = new BlockVector3[]{position.add(BlockVector3.UNIT_X), position.add(BlockVector3.UNIT_MINUS_X), position.add(BlockVector3.UNIT_Y), position.add(BlockVector3.UNIT_MINUS_Y), position.add(BlockVector3.UNIT_Z), position.add(BlockVector3.UNIT_MINUS_Z)};
                     neighbors = new int[8];
-                    for (int i=0; i<6; i++) {
+                    for (int i = 0; i < 6; i++) {
                         if (blocks.containsKey(neighborPositions[i])) {
                             neighbors[i] = blocks.get(neighborPositions[i]).shape;
                         } else {
                             BlockState blockState = this.actuallyGetBlock(neighborPositions[i]);
-                            if (blockState==null) {blockState = BlockTypes.AIR.getDefaultState();} // replace null by air block
+                            if (blockState == null) {
+                                blockState = BlockTypes.AIR.getDefaultState();
+                            } // replace null by air block
                             String blockId = blockState.getBlockType().getId();
                             if (blockId.equals("minecraft:air") || blockId.equals("minecraft:cave_air") || blockId.equals("minecraft:void_air") || blockId.equals("minecraft:water") || blockId.equals("minecraft:lava")) {
                                 neighbors[i] = 0;
-                            }
-                            else {
+                            } else {
                                 // 1) extract block variant (stairs/slab/quarter_slab/...)
                                 int index = separatorIndex(blockId);
-                                String blockMaterial = index==-1 ? fixConquestNames(blockId,"") : fixConquestNames(blockId.substring(0,index),"");
-                                String blockVariant = index==-1 ? "" : blockId.substring(index+1);
+                                String blockMaterial = index == -1 ? fixConquestNames(blockId, "") : fixConquestNames(blockId.substring(0, index), "");
+                                String blockVariant = index == -1 ? "" : blockId.substring(index + 1);
 
                                 // 2) obtain the block shape
                                 neighbors[i] = blockShape(blockMaterial, blockVariant, blockState, neighborPositions[i], false);
@@ -1190,20 +1260,304 @@ public abstract class AbstractBrush implements Brush {
                         }
                     }
 
-                    boolean additive = (action == ToolAction.ARROW) == this.additiveBrush;
-                    // whether the brush action will add (true) or remove (false) blocks, inverted for gunpowder action
-                    // this changes how block-shapes, that do not exist in Conquest, are represented
-                    candidates = additive ? GET_SHAPE_ADDITIVE.get(block.shape) : GET_SHAPE_SUBTRACTIVE.get(block.shape);
-                    min=25;
-                    for (int candidate : candidates){
-                        n = nExposedFaces(candidate, neighbors);
-                        if (n<min)
-                        {
-                            min = n;
-                            newShape = candidate;
+                    if(!perfectSymmetry) {
+                        boolean additive = (action == ToolAction.ARROW) == this.additiveBrush;
+                        // whether the brush action will add (true) or remove (false) blocks, inverted for gunpowder action
+                        // this changes how block-shapes, that do not exist in Conquest, are represented
+
+                        candidates = additive ? GET_SHAPE_ADDITIVE.get(block.shape).iterator() : GET_SHAPE_SUBTRACTIVE.get(block.shape).iterator();
+
+                        min=25;
+                        while (candidates.hasNext()) {
+                            int candidate = candidates.next();
+                            n = nExposedFaces(candidate, neighbors);
+                            if (n < min) {
+                                min = n;
+                                newShape = candidate;
+                            }
+                            else {if (n == min && binaryCrossSum(candidate % (1 << 8)) == 6) { // give priority for stairs/corner-blocks, looks better oftentimes
+                                newShape = candidate;
+                            }}
                         }
-                        else if (n==min && binaryCrossSum(candidate % (1<<8))==6) { // give priority for stairs/corner-blocks, looks better oftentimes
-                            newShape = candidate;
+                    }
+                    else {
+                        BlockVector3 relPos = position.subtract(this.center);
+                        long x,y,z;
+                        if (isEllipsoid) {
+                            x = ((long) relPos.getX()) * (((long) radii[1]) * ((long) radii[2]) * ((long) radii[1]) * ((long) radii[2]));
+                            y = ((long) relPos.getY()) * (((long) radii[0]) * ((long) radii[2]) * ((long) radii[0]) * ((long) radii[2]));
+                            z = ((long) relPos.getZ()) * (((long) radii[0]) * ((long) radii[1]) * ((long) radii[0]) * ((long) radii[1]));
+                        }
+                        else {
+                            x = relPos.getX();
+                            y = relPos.getY();
+                            z = relPos.getZ();
+                        }
+                        boolean onBoundary4 = (Math.abs(x) == Math.abs(y) && Math.abs(x) >= Math.abs(z)) || (Math.abs(y) == Math.abs(z) && Math.abs(y) >= Math.abs(x)) || (Math.abs(z) == Math.abs(x) && Math.abs(z) >= Math.abs(y));
+                        boolean onBoundary3 = x == 0 || y == 0 || z == 0 || onBoundary4;
+                        boolean onBoundary2 = (Math.abs(x) == Math.abs(y) && Math.abs(x) <= Math.abs(z)) || (Math.abs(y) == Math.abs(z) && Math.abs(y) <= Math.abs(x)) || (Math.abs(z) == Math.abs(x) && Math.abs(z) <= Math.abs(y));
+                        boolean onCorner = Math.abs(x) == Math.abs(y) && Math.abs(y) == Math.abs(z);
+
+                        int volume;
+                        double sumOfSquares = Math.pow((isBall ? ((double) relPos.getX() * (double) relPos.getX() + (double) relPos.getY() * (double) relPos.getY() + (double) relPos.getZ() * (double) relPos.getZ())/(radii[0]/2.0 * radii[0]/2.0) :
+                                ((double) relPos.getX()*relPos.getX() / (radii[0]/2.0*radii[0]/2.0) + (double) relPos.getY()*relPos.getY() / (radii[1]/2.0*radii[1]/2.0) + (double) relPos.getZ()*relPos.getZ() / (radii[2]/2.0*radii[2]/2.0))), 0.5);
+                        boolean insideShape = (sumOfSquares < 1.0);
+                        if (onCorner) {
+                            if (isBall && radii[0] == 6) { // one exception where it would choose the wrong block:
+                                insideShape = false;
+                            }
+                            if (insideShape) {volume = (this.isHollow==1) ? 1 : 7;}
+                            else             {volume = (this.isHollow==1) ? 7 : 1;}
+                        }
+                        else {
+                            if (binaryCrossSum(block.shape % (1<<8))==4) {
+                                if (!onBoundary3) {
+                                    volume = 3;
+                                }
+                                else {
+                                    if (insideShape) {volume = (this.isHollow==1) ? 2 : 6;}
+                                    else             {volume = (this.isHollow==1) ? 6 : 2;}
+                                }
+                            }
+                            else { // thus ...==5
+                                if (onBoundary2) {volume=4;}
+                                else {
+                                    if (onBoundary4) {volume=6;}
+                                    else {
+                                        if (insideShape) {volume = (this.isHollow==1) ? 4 : 6;}
+                                        else             {volume = (this.isHollow==1) ? 6 : 4;}
+                                    }
+                                }
+                            }
+                        }
+
+                        if(volume==1) {
+                            if(x>0) {
+                                if(y>0) {
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b10000000 : 0b00000001;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b01000000 : 0b00000010;
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b00100000 : 0b00000100;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b00010000 : 0b00001000;
+                                    }
+                                }
+                            }
+                            else { // x<0
+                                if(y>0) {
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b00001000 : 0b00010000;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b00000100 : 0b00100000;
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b00000010 : 0b01000000;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b00000001 : 0b10000000;
+                                    }
+                                }
+                            }
+                        }
+
+                        if(volume==7) {
+                            if(x>0) {
+                                if(y>0) {
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b11111110 : 0b01111111;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b11111101 : 0b10111111;
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b11111011 : 0b11011111;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b11110111 : 0b11101111;
+                                    }
+                                }
+                            }
+                            else { // x<0
+                                if(y>0) {
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b11101111 : 0b11110111;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b11011111 : 0b11111011;
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        newShape = (this.isHollow==1) ? 0b10111111 : 0b11111101;
+                                    }
+                                    else { // z<0
+                                        newShape = (this.isHollow==1) ? 0b01111111 : 0b11111110;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (volume==3) {
+                            if(x>0) {
+                                if(y>0) {
+                                    if(z>0) {
+                                        if(x>y && x>z) { // near +x axis
+                                            newShape = (this.isHollow==1) ? 0b11100000 : 0b00000111;}
+                                        else { if(z>x && z>y) { // near +z axis
+                                            newShape = (this.isHollow==1) ? 0b10101000 : 0b00010101;}
+                                        else {           // near +y axis
+                                            newShape = (this.isHollow==1) ? 0b11001000 : 0b00010011;}}
+                                    }
+                                    else { // z<0
+                                        if(x>y && x>-z) {  // near +x axis
+                                            newShape = (this.isHollow==1) ? 0b11010000 : 0b00001011;}
+                                        else { if(-z>x && -z>y) { // near -z axis
+                                            newShape = (this.isHollow==1) ? 0b01010100 : 0b00101010;}
+                                        else {             // near +y axis
+                                            newShape = (this.isHollow==1) ? 0b11000100 : 0b00100011;}}
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        if(x>-y && x>z) { // near +x axis
+                                            newShape = (this.isHollow==1) ? 0b10110000 : 0b00001101;}
+                                        else { if(z>x && z>-y) { // near +z axis
+                                            newShape = (this.isHollow==1) ? 0b10100010 : 0b01000101;}
+                                        else {            // near -y axis
+                                            newShape = (this.isHollow==1) ? 0b00110010 : 0b01001100;}}
+                                    }
+                                    else { // z<0
+                                        if(x>-y && x>-z) {  // near +x axis
+                                            newShape = (this.isHollow==1) ? 0b01110000 : 0b00001110;}
+                                        else { if(-z>x && -z>-y) { // near -z axis
+                                            newShape = (this.isHollow==1) ? 0b01010001 : 0b10001010;}
+                                        else {              // near -y axis
+                                            newShape = (this.isHollow==1) ? 0b00110001 : 0b10001100;}}
+                                    }
+                                }
+                            }
+                            else { // x<0
+                                if(y>0) {
+                                    if(z>0) {
+                                        if(-x>y && -x>z) { // near -x axis
+                                            newShape = (this.isHollow==1) ? 0b00001110 : 0b01110000;}
+                                        else { if(z>-x && z>y) {  // near +z axis
+                                            newShape = (this.isHollow==1) ? 0b10001010 : 0b01010001;}
+                                        else {             // near +y axis
+                                            newShape = (this.isHollow==1) ? 0b10001100 : 0b00110001;}}
+                                    }
+                                    else { // z<0
+                                        if(-x>y && -x>-z) { // near -x axis
+                                            newShape = (this.isHollow==1) ? 0b00001101 : 0b10110000;}
+                                        else { if(-z>-x && -z>y) { // near -z axis
+                                            newShape = (this.isHollow==1) ? 0b01000101 : 0b10100010;}
+                                        else {              // near +y axis
+                                            newShape = (this.isHollow==1) ? 0b01001100 : 0b00110010;}}
+                                    }
+                                }
+                                else { // y<0
+                                    if(z>0) {
+                                        if(-x>-y && -x>z) { // near -x axis
+                                            newShape = (this.isHollow==1) ? 0b00001011 : 0b11010000;}
+                                        else { if(z>-x && z>-y) {  // near +z axis
+                                            newShape = (this.isHollow==1) ? 0b00101010 : 0b01010100;}
+                                        else {              // near -y axis
+                                            newShape = (this.isHollow==1) ? 0b00100011 : 0b11000100;}}
+                                    }
+                                    else { // z<0
+                                        if(-x>-y && -x>-z) { // near -x axis
+                                            newShape = (this.isHollow==1) ? 0b00000111 : 0b11100000;}
+                                        else { if(-z>-x && -z>-y) { // near -z axis
+                                            newShape = (this.isHollow==1) ? 0b00010101 : 0b10101000;}
+                                        else {               // near -y axis
+                                            newShape = (this.isHollow==1) ? 0b00010011 : 0b11001000;}}
+                                    }
+                                }
+                            }
+                        }
+
+                        if (volume==4) {
+                            if(x>Math.abs(y) && x>Math.abs(z)) {          // near +x axis
+                                newShape = (this.isHollow==1) ? 0b11110000 : 0b00001111;}
+                            else { if(z>Math.abs(x) && z>Math.abs(y)) {   // near +z axis
+                                newShape = (this.isHollow==1) ? 0b10101010 : 0b01010101;}
+                            else { if(y>Math.abs(x) && y>Math.abs(z)) {   // near +y axis
+                                newShape = (this.isHollow==1) ? 0b11001100 : 0b00110011;}
+                            else { if(-x>Math.abs(y) && -x>Math.abs(z)) { // near -x axis
+                                newShape = (this.isHollow==1) ? 0b00001111 : 0b11110000;}
+                            else { if(-z>Math.abs(x) && -z>Math.abs(y)) { // near -z axis
+                                newShape = (this.isHollow==1) ? 0b01010101 : 0b10101010;}
+                            else {                                        // near -y axis
+                                newShape = (this.isHollow==1) ? 0b00110011 : 0b11001100;}}
+                            }}}
+                        }
+
+                        if (volume==2) {
+                            if(Math.min(x,y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b11000000 : 0b00000011;}
+                            else { if(Math.min(-x,y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b00001100 : 0b00110000;}
+                            else { if(Math.min(x,-y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b00110000 : 0b00001100;}
+                            else { if(Math.min(-x,-y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b00000011 : 0b11000000;}
+                            else { if(Math.min(y,z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b10001000 : 0b00010001;}
+                            else { if(Math.min(-y,z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b00100010 : 0b01000100;}
+                            else { if(Math.min(y,-z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b01000100 : 0b00100010;}
+                            else { if(Math.min(-y,-z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b00010001 : 0b10001000;}
+                            else { if(Math.min(z,x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b10100000 : 0b00000101;}
+                            else { if(Math.min(-z,x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b01010000 : 0b00001010;}
+                            else { if(Math.min(z,-x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b00001010 : 0b01010000;}
+                            else { // Math.min(-z,-x) > Math.abs(y)
+                                newShape = (this.isHollow==1) ? 0b00000101 : 0b10100000;}
+                            }}}}}}}}}}
+                        }
+
+                        if (volume==6) {
+                            if(Math.min(x,y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b11111100 : 0b00111111;}
+                            else { if(Math.min(-x,y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b11001111 : 0b11110011;}
+                            else { if(Math.min(x,-y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b11110011 : 0b11001111;}
+                            else { if(Math.min(-x,-y) > Math.abs(z)) {
+                                newShape = (this.isHollow==1) ? 0b00111111 : 0b11111100;}
+                            else { if(Math.min(y,z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b11101110 : 0b01110111;}
+                            else { if(Math.min(-y,z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b10111011 : 0b11011101;}
+                            else { if(Math.min(y,-z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b11011101 : 0b10111011;}
+                            else { if(Math.min(-y,-z) > Math.abs(x)) {
+                                newShape = (this.isHollow==1) ? 0b01110111 : 0b11101110;}
+                            else { if(Math.min(z,x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b11111010 : 0b01011111;}
+                            else { if(Math.min(-z,x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b11110101 : 0b10101111;}
+                            else { if(Math.min(z,-x) > Math.abs(y)) {
+                                newShape = (this.isHollow==1) ? 0b10101111 : 0b11110101;}
+                            else { // Math.min(-z,-x) > Math.abs(y)
+                                newShape = (this.isHollow==1) ? 0b01011111 : 0b11111010;}
+                            }}}}}}}}}}
                         }
                     }
                 }
@@ -1224,13 +1578,7 @@ public abstract class AbstractBrush implements Brush {
                 }
             }
 
-            /*
-            System.out.println("done placing blocks, applying layerBrush ...");
-            LayerBrush.pause(1000);
-            System.out.println("... now");
-            AbstractBrush.layerBrush.perform(snipe, action, editSession, targetBlock, lastBlock);
-            System.out.println("DONE!");
-            */
+            this.isHollow = -1;
         }
 
         if (useAutoLayer) {
@@ -1610,7 +1958,6 @@ public abstract class AbstractBrush implements Brush {
                         block = this.editSession.getBlock(position);
                     }
                     String blockId  = block.getBlockType().getId();
-                    //System.out.println("        blockId="+blockId);
                     if (blockId.equals("minecraft:air") || blockId.equals("minecraft:void_air") || blockId.equals("minecraft:cave_air")) {
                         waterlogged.add(0,false);
                     }
@@ -1638,7 +1985,7 @@ public abstract class AbstractBrush implements Brush {
                         case "slab"             -> height;
                         case "vertical_slab"    -> height<=4 ? 1 : 8;
                         case "vertical_corner"  -> height<=2 ? 1 : 8;
-                        case "quarter"          -> height<=2 ? 1 : 6;
+                        case "quarter_slab"     -> height<=2 ? 1 : 6;
                         case "vertical_quarter" -> height<=3 ? 1 : 8;
                         default                 -> upper>=3 ? 8 : (lower>=3 ? 4 : 1);
                         };
@@ -1646,9 +1993,6 @@ public abstract class AbstractBrush implements Brush {
                         // 2) set the plants
                         for (int i=0; i<plantStack.size() && i<waterlogged.size(); i++) {
                             String plantId = plantStack.get(i);
-                            //System.out.println("   y:           "+(y+i+1));
-                            //System.out.println("   plantId:     "+plantId);
-                            //System.out.println("   waterlogged: "+waterlogged.get(i));
                             BlockState plantBlock = BlockTypes.get(plantId).getDefaultState();
                             properties = plantBlock.getBlockType().getPropertyMap();
                             if(waterlogged.get(i) && properties.containsKey("waterlogged")) {

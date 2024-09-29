@@ -50,27 +50,30 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
                 this.offset = false;
                 messenger.sendMessage(ChatFormatting.AQUA + "Offset OFF.");
             } else {
-                Integer zRad;
+                Integer rad;
                 if (parameter.startsWith("x[")) {
-                    zRad = NumericParser.parseInteger(parameter.replace("x[", "").replace("]", ""));
-                    if (zRad != null) {
-                        this.xRad = (double) zRad;
+                    rad = NumericParser.parseInteger(parameter.replace("x[", "").replace("]", ""));
+                    if (rad != null) {
+                        this.xRad = (double) rad;
+                        //this.radii[0] = rad;
                         messenger.sendMessage(ChatFormatting.AQUA + "X radius set to: " + this.xRad);
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
                 } else if (parameter.startsWith("y[")) {
-                    zRad = NumericParser.parseInteger(parameter.replace("y[", "").replace("]", ""));
-                    if (zRad != null) {
-                        this.yRad = (double) zRad;
+                    rad = NumericParser.parseInteger(parameter.replace("y[", "").replace("]", ""));
+                    if (rad != null) {
+                        this.yRad = (double) rad;
+                        //this.radii[1] = rad;
                         messenger.sendMessage(ChatFormatting.AQUA + "Y radius set to: " + this.yRad);
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
                     }
                 } else if (parameter.startsWith("z[")) {
-                    zRad = NumericParser.parseInteger(parameter.replace("z[", "").replace("]", ""));
-                    if (zRad != null) {
-                        this.zRad = (double) zRad;
+                    rad = NumericParser.parseInteger(parameter.replace("z[", "").replace("]", ""));
+                    if (rad != null) {
+                        this.zRad = (double) rad;
+                        //this.radii[2] = rad;
                         messenger.sendMessage(ChatFormatting.AQUA + "Z radius set to: " + this.zRad);
                     } else {
                         messenger.sendMessage(ChatFormatting.RED + "Invalid number.");
@@ -78,9 +81,11 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
                 } else { if (parameter.equalsIgnoreCase("center")) {
                     if (!this.centerBlock) {
                         this.centerBlock = true;
+                        this.perfectSymmetry = true;
                         messenger.sendMessage(ChatFormatting.AQUA + "centerBlock ON. The brush will now be centered on a block in smallBlocks mode.");
                     } else {
                         this.centerBlock = false;
+                        this.perfectSymmetry = false;
                         messenger.sendMessage(ChatFormatting.AQUA + "centerBlock OFF. The brush will now be centered on the corner of a block in smallBlocks mode.");
                     }
                     } else { if (parameter.equalsIgnoreCase("full")) {
@@ -161,6 +166,7 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
     }
 
     private void execute(BlockVector3 targetBlock) throws MaxChangedBlocksException {
+        this.center = targetBlock;
         int xDirection = 0;
         int yDirection = 0;
         int zDirection = 0;
@@ -194,6 +200,16 @@ public class EllipsoidBrush extends AbstractPerformerBrush {
 
         this.performer.perform(this.getEditSession(), blockX, blockY, blockZ, this.getBlock(blockX, blockY, blockZ));
         double trueOffset = this.offset ? 0.5D : 0.0D;
+        if (this.offset) {
+            this.radii[0] = (int) (2*this.xRad + 1.5);
+            this.radii[1] = (int) (2*this.yRad + 1.5);
+            this.radii[2] = (int) (2*this.zRad + 1.5);
+        }
+        else {
+            this.radii[0] = (int) (2*this.xRad + 0.5);
+            this.radii[1] = (int) (2*this.yRad + 0.5);
+            this.radii[2] = (int) (2*this.zRad + 0.5);
+        }
 
         for (int x = 0; x <= this.xRad + sizeOffset; ++x) {
             double xSquared = (x - coordOffset) / (this.xRad + trueOffset + coordOffset) * ((x - coordOffset) / (this.xRad + trueOffset + coordOffset));

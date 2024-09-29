@@ -54,17 +54,16 @@ public class VoxelBrush extends AbstractPerformerBrush {
     }
 
     public void handleArrowAction(Snipe snipe) {
-        this.voxel(snipe);
+        this.voxel(snipe, this.getTargetBlock());
     }
 
     public void handleGunpowderAction(Snipe snipe) {
-        this.voxel(snipe);
+        this.voxel(snipe, this.getLastBlock());
     }
 
-    private void voxel(Snipe snipe) {
+    private void voxel(Snipe snipe, BlockVector3 targetBlock) {
         ToolkitProperties toolkitProperties = snipe.getToolkitProperties();
         int brushSize = toolkitProperties.getBrushSize();
-        BlockVector3 targetBlock = this.getTargetBlock();
         int blockX = targetBlock.getX();
         int blockY = targetBlock.getY();
         int blockZ = targetBlock.getZ();
