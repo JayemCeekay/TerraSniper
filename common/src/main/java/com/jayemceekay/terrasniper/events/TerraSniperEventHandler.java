@@ -4,6 +4,7 @@ import com.jayemceekay.terrasniper.TerraSniper;
 import com.jayemceekay.terrasniper.sniper.Sniper;
 import com.jayemceekay.terrasniper.util.PlatformAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
+import net.luckperms.api.LuckPermsProvider;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -30,7 +31,7 @@ public class TerraSniperEventHandler {
         if (player instanceof ServerPlayer) {
             Sniper sniper = TerraSniper.sniperRegistry.getSniper(player.getUUID());
             ServerPlayer serverPlayer = player.getServer().getPlayerList().getPlayer(player.getUUID());
-            if (player.isCreative()) {
+            if (player.isCreative() && LuckPermsProvider.get().getUserManager().getUser(player.getUUID()).getCachedData().getPermissionData().checkPermission("terrasniper.ts").asBoolean()) {
                 if (sniper.isEnabled()) {
                     if (sniper.getCurrentToolkit() != null) {
                         ItemStack usedItem = sniper.getPlayer().getMainHandItem();
@@ -41,7 +42,7 @@ public class TerraSniperEventHandler {
             }
 
         }
-        return new InteractionResultHolder<>(InteractionResult.SUCCESS, player.getItemInHand(interactionHand));
+        return new InteractionResultHolder<>(InteractionResult.PASS, player.getItemInHand(interactionHand));
     }
 
 }
